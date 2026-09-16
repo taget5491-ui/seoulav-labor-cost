@@ -15,6 +15,13 @@
       "when": 1789600125290,
       "tag": "0001_elite_spitfire",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1789602244428,
+      "tag": "0002_groovy_sabretooth",
+      "breakpoints": true
     }
   ]
 }

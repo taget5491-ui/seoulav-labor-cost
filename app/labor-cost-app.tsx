@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Calculator, CalendarDays, Download, FileClock, Plus, RotateCcw, Save, Trash2, Users } from "lucide-react";
+import { Archive, Calculator, CalendarDays, Download, FileClock, History, Lock, Plus, Printer, RotateCcw, Save, Search, Trash2, Users } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,7 +27,13 @@ type SavedEstimate = {
   groupId: string;
   version: number;
   projectName: string;
+  siteName: string;
   companyName: string;
+  managerName: string;
+  startDate: string;
+  endDate: string;
+  status: EstimateStatus;
+  archivedAt: string | null;
   notes: string;
   extraCosts: number;
   internalHeadcount: number;
@@ -37,6 +43,23 @@ type SavedEstimate = {
   updatedAt: string;
   createdByEmail: string;
   entries: LaborRow[];
+  history: Array<{ id: string; version: number; status: EstimateStatus; totalAmount: number; createdByEmail: string; updatedAt: string }>;
+};
+
+type EstimateStatus = "draft" | "review" | "confirmed" | "closed";
+
+const STATUS_LABELS: Record<EstimateStatus, string> = {
+  draft: "작성 중",
+  review: "검토 요청",
+  confirmed: "확정",
+  closed: "종료",
+};
+
+const STATUS_STYLES: Record<EstimateStatus, string> = {
+  draft: "bg-slate-100 text-slate-700",
+  review: "bg-amber-100 text-amber-800",
+  confirmed: "bg-emerald-100 text-emerald-800",
+  closed: "bg-blue-100 text-blue-800",
 };
 
 function today() {
@@ -60,6 +83,10 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
   const [workSite, setWorkSite] = useState("DS기흥");
   const [projectName, setProjectName] = useState("");
   const [companyName, setCompanyName] = useState("");
+  const [managerName, setManagerName] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [status, setStatus] = useState<EstimateStatus>("draft");
   const [notes, setNotes] = useState("");
   const [extraCosts, setExtraCosts] = useState(0);
   const [internalHeadcount, setInternalHeadcount] = useState(0);
@@ -68,11 +95,31 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
   const [sourceGroupId, setSourceGroupId] = useState<string | null>(null);
   const [saved, setSaved] = useState<SavedEstimate[]>([]);
   const [saving, setSaving] = useState(false);
+  const [allowLockedRevision, setAllowLockedRevision] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | EstimateStatus>("all");
+  const [siteFilter, setSiteFilter] = useState("all");
+  const [reportMonth, setReportMonth] = useState(today().slice(0, 7));
+  const [includeArchived, setIncludeArchived] = useState(false);
 
   const result = useMemo(
     () => calculateEstimate(rows, extraCosts, DEFAULT_RATES, internalHeadcount, internalDays),
     [rows, extraCosts, internalHeadcount, internalDays],
   );
+
+  const isLocked = Boolean(sourceGroupId && ["confirmed", "closed"].includes(status) && !allowLockedRevision);
+  const filteredSaved = useMemo(() => saved.filter((estimate) => {
+    if (!includeArchived && estimate.archivedAt) return false;
+    if (statusFilter !== "all" && estimate.status !== statusFilter) return false;
+    if (siteFilter !== "all" && (estimate.siteName || estimate.entries[0]?.workSite) !== siteFilter) return false;
+    const haystack = `${estimate.projectName} ${estimate.siteName} ${estimate.companyName} ${estimate.managerName}`.toLowerCase();
+    return haystack.includes(searchTerm.trim().toLowerCase());
+  }), [saved, includeArchived, statusFilter, siteFilter, searchTerm]);
+  const monthlySaved = useMemo(() => saved.filter((estimate) => !estimate.archivedAt && (estimate.startDate || estimate.updatedAt.slice(0, 7)).startsWith(reportMonth)), [saved, reportMonth]);
+  const monthlyTotal = monthlySaved.reduce((sum, estimate) => sum + estimate.totalAmount, 0);
+  const monthlySites = new Set(monthlySaved.map((estimate) => estimate.siteName || estimate.entries[0]?.workSite).filter(Boolean)).size;
+  const monthlySiteTotals = useMemo(() => summarizeEstimates(monthlySaved, (estimate) => estimate.siteName || estimate.entries[0]?.workSite || "미입력"), [monthlySaved]);
+  const monthlyCompanyTotals = useMemo(() => summarizeEstimates(monthlySaved, (estimate) => estimate.companyName || "미입력"), [monthlySaved]);
 
   const loadSaved = useCallback(async () => {
     try {
@@ -164,19 +211,28 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
     setWorkSite("DS기흥");
     setProjectName("");
     setCompanyName("");
+    setManagerName("");
+    setStartDate("");
+    setEndDate("");
+    setStatus("draft");
     setNotes("");
     setExtraCosts(0);
     setInternalHeadcount(0);
     setInternalDays(0);
     setRows([newRow()]);
     setSourceGroupId(null);
+    setAllowLockedRevision(false);
   }
 
   function openEstimate(estimate: SavedEstimate) {
-    const savedWorkSite = estimate.entries.find((entry) => entry.workSite)?.workSite || "DS기흥";
+    const savedWorkSite = estimate.siteName || estimate.entries.find((entry) => entry.workSite)?.workSite || "DS기흥";
     setWorkSite(savedWorkSite);
     setProjectName(estimate.projectName);
     setCompanyName(estimate.companyName);
+    setManagerName(estimate.managerName || "");
+    setStartDate(estimate.startDate || "");
+    setEndDate(estimate.endDate || "");
+    setStatus(estimate.status || "draft");
     setNotes(estimate.notes);
     setExtraCosts(estimate.extraCosts);
     setInternalHeadcount(estimate.internalHeadcount ?? 0);
@@ -187,13 +243,46 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
       id: crypto.randomUUID(),
     })));
     setSourceGroupId(estimate.groupId);
+    setAllowLockedRevision(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
     toast.info(`v${estimate.version} 견적을 불러왔습니다.`);
+  }
+
+  async function openVersion(versionId: string) {
+    try {
+      const response = await fetch(`/api/estimates?id=${encodeURIComponent(versionId)}`, { cache: "no-store" });
+      const data = (await response.json()) as { estimate?: SavedEstimate; error?: string };
+      if (!response.ok || !data.estimate) throw new Error(data.error || "이력을 불러오지 못했습니다.");
+      openEstimate(data.estimate);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "이력을 불러오지 못했습니다.");
+    }
+  }
+
+  async function changeArchive(estimate: SavedEstimate) {
+    try {
+      const response = await fetch("/api/estimates", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ groupId: estimate.groupId, action: estimate.archivedAt ? "restore" : "archive" }),
+      });
+      const data = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(data.error || "보관 상태를 변경하지 못했습니다.");
+      toast.success(estimate.archivedAt ? "견적을 복원했습니다." : "견적을 보관했습니다.");
+      if (sourceGroupId === estimate.groupId && !estimate.archivedAt) resetForm();
+      await loadSaved();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "보관 상태를 변경하지 못했습니다.");
+    }
   }
 
   async function saveEstimate() {
     if (!projectName.trim()) {
       toast.error("공사명을 입력해 주세요.");
+      return;
+    }
+    if (startDate && endDate && startDate > endDate) {
+      toast.error("공사 종료일을 확인해 주세요.");
       return;
     }
     if (rows.some((row) => !row.description.trim() || row.headcount < 1 || row.days < 0.5)) {
@@ -208,18 +297,25 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           projectName,
+          siteName: workSite,
           companyName,
+          managerName,
+          startDate,
+          endDate,
+          status,
           notes,
           extraCosts,
           internalHeadcount,
           internalDays,
           sourceGroupId,
+          allowLockedRevision,
           entries: rows.map((row) => ({ ...row, workSite })),
         }),
       });
       const data = (await response.json()) as { error?: string; groupId?: string; version?: number };
       if (!response.ok) throw new Error(data.error || "저장에 실패했습니다.");
       setSourceGroupId(data.groupId ?? null);
+      setAllowLockedRevision(false);
       toast.success(`견적 v${data.version}을 저장했습니다.`);
       await loadSaved();
     } catch (error) {
@@ -234,6 +330,9 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
       ["사업장", workSite],
       ["공사명", projectName || "미입력"],
       ["업체명", companyName || "미입력"],
+      ["담당자", managerName || "미입력"],
+      ["공사기간", startDate && endDate ? `${startDate} ~ ${endDate}` : startDate || endDate || "미입력"],
+      ["진행상태", STATUS_LABELS[status]],
       [],
       ["작업일", "작업내용", "구분", "인원", "일수", "공수", "기본노무비", "일반관리비", "공구손료", "요일가산", "합계"],
       ...result.rows.map((row) => [
@@ -262,7 +361,7 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
 
   return (
     <div className="min-h-screen bg-[#f4f7fb] text-slate-900">
-      <header className="border-b border-slate-200 bg-[#0c2340] text-white shadow-sm">
+      <header className="no-print border-b border-slate-200 bg-[#0c2340] text-white shadow-sm">
         <div className="mx-auto flex max-w-[1500px] items-center justify-between gap-4 px-5 py-4 lg:px-8">
           <div className="flex items-center gap-3">
             <div className="grid size-10 place-items-center rounded-xl bg-cyan-400 text-[#0c2340]"><Calculator className="size-5" /></div>
@@ -275,18 +374,23 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
       <main className="mx-auto max-w-[1500px] px-4 py-6 lg:px-8">
         <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
           <div><p className="text-sm font-medium text-cyan-700">신규 산출</p><h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">공사 노무비 계산</h1></div>
-          <div className="flex flex-wrap gap-2">
+          <div className="no-print flex flex-wrap gap-2">
             <Button variant="outline" onClick={resetForm}><RotateCcw /> 새로 작성</Button>
             <Button variant="outline" onClick={exportExcel}><Download /> 엑셀 내보내기</Button>
-            <Button onClick={saveEstimate} disabled={saving} className="bg-cyan-600 hover:bg-cyan-700"><Save /> {saving ? "저장 중" : "견적 저장"}</Button>
+            <Button variant="outline" onClick={() => window.print()}><Printer /> PDF 출력</Button>
+            {isLocked && <Button variant="outline" onClick={() => { setAllowLockedRevision(true); setStatus("draft"); toast.info("수정본 작성 상태로 전환했습니다."); }}><Lock /> 수정본 만들기</Button>}
+            <Button onClick={saveEstimate} disabled={saving || isLocked} className="bg-cyan-600 hover:bg-cyan-700"><Save /> {saving ? "저장 중" : isLocked ? "확정 잠금" : "견적 저장"}</Button>
           </div>
         </div>
 
+        <div className="print-only mb-6 hidden border-b border-slate-300 pb-4"><h1 className="text-2xl font-semibold">노무비 산출서</h1><p className="mt-1 text-sm text-slate-600">{workSite} · {projectName}</p></div>
+
         <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
-          <div className="space-y-5">
+          <fieldset disabled={isLocked} className="space-y-5 disabled:opacity-90">
+            {isLocked && <div className="no-print rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">확정 또는 종료된 견적은 잠금 상태입니다. 변경하려면 상단의 수정본 만들기를 선택하세요.</div>}
             <Card className="border-slate-200 shadow-sm">
               <CardHeader className="border-b border-slate-100"><CardTitle className="text-base">공사 정보</CardTitle></CardHeader>
-              <CardContent className="grid gap-4 pt-5 md:grid-cols-3">
+              <CardContent className="grid gap-4 pt-5 md:grid-cols-2 xl:grid-cols-4">
                 <div className="space-y-2">
                   <Label htmlFor="workSite">사업장</Label>
                   <Select value={workSite} onValueChange={(value) => { setWorkSite(value); setRows((current) => current.map((row) => ({ ...row, workSite: value }))); }}>
@@ -296,6 +400,10 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
                 </div>
                 <div className="space-y-2"><Label htmlFor="projectName">공사명</Label><Input id="projectName" value={projectName} onChange={(event) => setProjectName(event.target.value)} placeholder="예: DS기흥 회의실 AV 개선공사" /></div>
                 <div className="space-y-2"><Label htmlFor="companyName">업체명</Label><Input id="companyName" value={companyName} onChange={(event) => setCompanyName(event.target.value)} placeholder="예: RTA, 일리스, 에스큐브랩" /></div>
+                <div className="space-y-2"><Label htmlFor="managerName">담당자</Label><Input id="managerName" value={managerName} onChange={(event) => setManagerName(event.target.value)} placeholder="예: 문승균 과장" /></div>
+                <div className="space-y-2"><Label htmlFor="startDate">공사 시작일</Label><Input id="startDate" type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} /></div>
+                <div className="space-y-2"><Label htmlFor="endDate">공사 종료일</Label><Input id="endDate" type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} /></div>
+                <div className="space-y-2"><Label htmlFor="status">진행상태</Label><Select value={status} onValueChange={(value) => setStatus(value as EstimateStatus)}><SelectTrigger id="status"><SelectValue /></SelectTrigger><SelectContent>{Object.entries(STATUS_LABELS).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select></div>
               </CardContent>
             </Card>
 
@@ -348,7 +456,7 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
                 <div className="space-y-2"><Label htmlFor="notes">비고</Label><Textarea id="notes" value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="공정 조건, 일정 변동 가능성, 포함·제외 사항 등을 입력하세요." className="min-h-24" /></div>
               </CardContent>
             </Card>
-          </div>
+          </fieldset>
 
           <aside className="space-y-5 xl:sticky xl:top-5">
             <Card className="overflow-hidden border-0 bg-[#0c2340] text-white shadow-lg">
@@ -363,18 +471,46 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
           </aside>
         </div>
 
-        <section className="mt-8">
-          <div className="mb-3 flex items-center gap-2"><FileClock className="size-5 text-cyan-700" /><h2 className="text-lg font-semibold">최근 저장 견적</h2></div>
-          {saved.length ? (
+        <section className="no-print mt-8 space-y-4">
+          <div className="flex items-center gap-2"><FileClock className="size-5 text-cyan-700" /><h2 className="text-lg font-semibold">공사 관리</h2></div>
+
+          <Card className="border-slate-200 shadow-sm">
+            <CardContent className="grid gap-3 pt-5 md:grid-cols-2 xl:grid-cols-[minmax(240px,1fr)_170px_170px_170px_auto]">
+              <div className="relative"><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" /><Input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="공사명, 사업장, 업체명, 담당자 검색" className="pl-9" /></div>
+              <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as "all" | EstimateStatus)}><SelectTrigger><SelectValue placeholder="상태 전체" /></SelectTrigger><SelectContent><SelectItem value="all">상태 전체</SelectItem>{Object.entries(STATUS_LABELS).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select>
+              <Select value={siteFilter} onValueChange={setSiteFilter}><SelectTrigger><SelectValue placeholder="사업장 전체" /></SelectTrigger><SelectContent><SelectItem value="all">사업장 전체</SelectItem>{WORK_SITES.map((site) => <SelectItem key={site} value={site}>{site}</SelectItem>)}</SelectContent></Select>
+              <Input type="month" value={reportMonth} onChange={(event) => setReportMonth(event.target.value)} aria-label="집계 월" />
+              <label className="flex min-h-10 items-center gap-2 whitespace-nowrap text-sm text-slate-600"><input type="checkbox" checked={includeArchived} onChange={(event) => setIncludeArchived(event.target.checked)} className="size-4 accent-cyan-600" />보관 포함</label>
+            </CardContent>
+          </Card>
+
+          <div className="grid gap-3 md:grid-cols-3">
+            <ManagementMetric label={`${reportMonth.replace("-", "년 ")}월 노무비`} value={formatWon(monthlyTotal)} />
+            <ManagementMetric label="해당 월 공사" value={`${monthlySaved.length}건`} />
+            <ManagementMetric label="해당 월 사업장" value={`${monthlySites}개소`} />
+          </div>
+
+          <div className="grid gap-3 lg:grid-cols-2">
+            <AggregateCard title="사업장별 노무비" items={monthlySiteTotals} />
+            <AggregateCard title="업체별 노무비" items={monthlyCompanyTotals} />
+          </div>
+
+          {filteredSaved.length ? (
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {saved.slice(0, 9).map((estimate) => (
-                <button key={estimate.id} onClick={() => openEstimate(estimate)} className="rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-cyan-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500">
-                  <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate font-medium">{estimate.projectName}</p><p className="mt-1 truncate text-sm text-slate-500">{estimate.companyName || "업체명 미입력"}</p><p className="mt-1 truncate text-xs text-slate-400">{Array.from(new Set(estimate.entries.map((entry) => entry.workSite).filter(Boolean))).join(", ") || "사업장 미입력"}</p></div><span className="rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-600">v{estimate.version}</span></div>
-                  <div className="mt-4 flex items-end justify-between gap-3"><p className="text-lg font-semibold tabular-nums">{formatWon(estimate.totalAmount)}</p><p className="text-xs text-slate-400">{new Date(estimate.updatedAt).toLocaleDateString("ko-KR")}</p></div>
-                </button>
+              {filteredSaved.map((estimate) => (
+                <div key={estimate.id} className={`rounded-xl border bg-white p-4 shadow-sm ${estimate.archivedAt ? "border-dashed border-slate-300 opacity-70" : "border-slate-200"}`}>
+                  <button onClick={() => openEstimate(estimate)} className="w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500">
+                    <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate font-medium">{estimate.projectName}</p><p className="mt-1 truncate text-sm text-slate-500">{estimate.siteName || estimate.entries[0]?.workSite || "사업장 미입력"} · {estimate.companyName || "업체명 미입력"}</p><p className="mt-1 truncate text-xs text-slate-400">{estimate.managerName || "담당자 미입력"}{estimate.startDate ? ` · ${estimate.startDate}${estimate.endDate ? ` ~ ${estimate.endDate}` : ""}` : ""}</p></div><div className="flex shrink-0 flex-col items-end gap-1"><span className={`rounded-md px-2 py-1 text-xs ${STATUS_STYLES[estimate.status]}`}>{STATUS_LABELS[estimate.status]}</span><span className="text-xs text-slate-400">v{estimate.version}</span></div></div>
+                    <div className="mt-4 flex items-end justify-between gap-3"><p className="text-lg font-semibold tabular-nums">{formatWon(estimate.totalAmount)}</p><p className="text-xs text-slate-400">{new Date(estimate.updatedAt).toLocaleDateString("ko-KR")}</p></div>
+                  </button>
+                  <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-100 pt-3">
+                    <div className="flex min-w-0 items-center gap-1"><History className="size-3.5 shrink-0 text-slate-400" />{(estimate.history || []).slice(0, 4).map((version) => <button key={version.id} onClick={() => void openVersion(version.id)} className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600 hover:bg-cyan-100">v{version.version}</button>)}</div>
+                    <Button variant="ghost" size="sm" onClick={() => void changeArchive(estimate)}><Archive />{estimate.archivedAt ? "복원" : "보관"}</Button>
+                  </div>
+                </div>
               ))}
             </div>
-          ) : <div className="rounded-xl border border-dashed border-slate-300 bg-white px-5 py-10 text-center text-sm text-slate-500">저장된 견적이 없습니다. 첫 견적을 작성해 저장해 보세요.</div>}
+          ) : <div className="rounded-xl border border-dashed border-slate-300 bg-white px-5 py-10 text-center text-sm text-slate-500">조건에 맞는 저장 견적이 없습니다.</div>}
         </section>
       </main>
     </div>
@@ -391,4 +527,22 @@ function SummaryLine({ label, value }: { label: string; value: number }) {
 
 function RateLine({ label, value }: { label: string; value: number }) {
   return <div className="flex items-center justify-between gap-4"><span className="text-slate-600">{label}</span><span className="font-semibold tabular-nums">{formatWon(value)}</span></div>;
+}
+
+function ManagementMetric({ label, value }: { label: string; value: string }) {
+  return <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm"><p className="text-sm text-slate-500">{label}</p><p className="mt-1 text-xl font-semibold text-slate-900 tabular-nums">{value}</p></div>;
+}
+
+function summarizeEstimates(estimates: SavedEstimate[], getKey: (estimate: SavedEstimate) => string) {
+  const totals = new Map<string, { total: number; count: number }>();
+  for (const estimate of estimates) {
+    const key = getKey(estimate);
+    const current = totals.get(key) ?? { total: 0, count: 0 };
+    totals.set(key, { total: current.total + estimate.totalAmount, count: current.count + 1 });
+  }
+  return [...totals.entries()].map(([name, value]) => ({ name, ...value })).sort((a, b) => b.total - a.total);
+}
+
+function AggregateCard({ title, items }: { title: string; items: Array<{ name: string; total: number; count: number }> }) {
+  return <Card className="border-slate-200 shadow-sm"><CardHeader className="pb-2"><CardTitle className="text-sm">{title}</CardTitle></CardHeader><CardContent className="space-y-2">{items.length ? items.slice(0, 5).map((item) => <div key={item.name} className="flex items-center justify-between gap-3 text-sm"><span className="truncate text-slate-600">{item.name} <span className="text-xs text-slate-400">{item.count}건</span></span><span className="font-medium tabular-nums">{formatWon(item.total)}</span></div>) : <p className="text-sm text-slate-400">해당 월 자료가 없습니다.</p>}</CardContent></Card>;
 }

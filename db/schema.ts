@@ -9,7 +9,11 @@ export const estimates = sqliteTable(
     projectName: text("project_name").notNull(),
     siteName: text("site_name").notNull().default(""),
     companyName: text("company_name").notNull().default(""),
+    managerName: text("manager_name").notNull().default(""),
+    startDate: text("start_date").notNull().default(""),
+    endDate: text("end_date").notNull().default(""),
     status: text("status").notNull().default("draft"),
+    archivedAt: text("archived_at"),
     notes: text("notes").notNull().default(""),
     extraCosts: integer("extra_costs").notNull().default(0),
     internalHeadcount: integer("internal_headcount").notNull().default(0),
@@ -24,6 +28,7 @@ export const estimates = sqliteTable(
   (table) => [
     index("idx_estimates_group_version").on(table.groupId, table.version),
     index("idx_estimates_updated_at").on(table.updatedAt),
+    index("idx_estimates_status_updated").on(table.status, table.updatedAt),
   ],
 );
 
