@@ -1,12 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Archive, Calculator, CalendarDays, Download, FileClock, History, Lock, Plus, Printer, RotateCcw, Save, Search, Trash2, Users } from "lucide-react";
+import { Archive, Calculator, CalendarDays, Download, ExternalLink, FileClock, FileText, History, Lock, Paperclip, Plus, Printer, RotateCcw, Save, Search, Trash2, Users } from "lucide-react";
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
@@ -39,6 +42,10 @@ type SavedEstimate = {
   internalHeadcount: number;
   internalDays: number;
   internalLaborAmount: number;
+  quotedLaborAmount: number;
+  quoteFileKey: string;
+  quoteFileName: string;
+  quoteFileSize: number;
   totalAmount: number;
   updatedAt: string;
   createdByEmail: string;
@@ -61,6 +68,11 @@ const STATUS_STYLES: Record<EstimateStatus, string> = {
   confirmed: "bg-emerald-100 text-emerald-800",
   closed: "bg-blue-100 text-blue-800",
 };
+
+const COST_CHART_CONFIG = {
+  quoted: { label: "견적서 노무비", color: "#0891b2" },
+  actual: { label: "실제 투입 노무비", color: "#f59e0b" },
+} satisfies ChartConfig;
 
 function today() {
   return new Date().toISOString().slice(0, 10);
@@ -91,6 +103,11 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
   const [extraCosts, setExtraCosts] = useState(0);
   const [internalHeadcount, setInternalHeadcount] = useState(0);
   const [internalDays, setInternalDays] = useState(0);
+  const [quotedLaborAmount, setQuotedLaborAmount] = useState(0);
+  const [quoteFileKey, setQuoteFileKey] = useState("");
+  const [quoteFileName, setQuoteFileName] = useState("");
+  const [quoteFileSize, setQuoteFileSize] = useState(0);
+  const [pendingQuoteFile, setPendingQuoteFile] = useState<File | null>(null);
   const [rows, setRows] = useState<LaborRow[]>([newRow()]);
   const [sourceGroupId, setSourceGroupId] = useState<string | null>(null);
   const [saved, setSaved] = useState<SavedEstimate[]>([]);
@@ -120,6 +137,9 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
   const monthlySites = new Set(monthlySaved.map((estimate) => estimate.siteName || estimate.entries[0]?.workSite).filter(Boolean)).size;
   const monthlySiteTotals = useMemo(() => summarizeEstimates(monthlySaved, (estimate) => estimate.siteName || estimate.entries[0]?.workSite || "미입력"), [monthlySaved]);
   const monthlyCompanyTotals = useMemo(() => summarizeEstimates(monthlySaved, (estimate) => estimate.companyName || "미입력"), [monthlySaved]);
+  const executionRate = quotedLaborAmount > 0 ? (result.grandTotal / quotedLaborAmount) * 100 : 0;
+  const remainingLaborAmount = quotedLaborAmount - result.grandTotal;
+  const closedCostData = useMemo(() => saved.filter((estimate) => !estimate.archivedAt && estimate.status === "closed" && estimate.quotedLaborAmount > 0).slice(0, 8).map((estimate) => ({ name: estimate.projectName.length > 12 ? `${estimate.projectName.slice(0, 12)}…` : estimate.projectName, quoted: estimate.quotedLaborAmount, actual: estimate.totalAmount })), [saved]);
 
   const loadSaved = useCallback(async () => {
     try {
@@ -219,6 +239,11 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
     setExtraCosts(0);
     setInternalHeadcount(0);
     setInternalDays(0);
+    setQuotedLaborAmount(0);
+    setQuoteFileKey("");
+    setQuoteFileName("");
+    setQuoteFileSize(0);
+    setPendingQuoteFile(null);
     setRows([newRow()]);
     setSourceGroupId(null);
     setAllowLockedRevision(false);
@@ -237,6 +262,11 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
     setExtraCosts(estimate.extraCosts);
     setInternalHeadcount(estimate.internalHeadcount ?? 0);
     setInternalDays(estimate.internalDays ?? 0);
+    setQuotedLaborAmount(estimate.quotedLaborAmount ?? 0);
+    setQuoteFileKey(estimate.quoteFileKey || "");
+    setQuoteFileName(estimate.quoteFileName || "");
+    setQuoteFileSize(estimate.quoteFileSize || 0);
+    setPendingQuoteFile(null);
     setRows(estimate.entries.map((entry) => ({
       ...entry,
       workSite: savedWorkSite,
@@ -292,6 +322,19 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
 
     setSaving(true);
     try {
+      let savedQuoteFile = { key: quoteFileKey, name: quoteFileName, size: quoteFileSize };
+      if (pendingQuoteFile) {
+        const formData = new FormData();
+        formData.append("file", pendingQuoteFile);
+        const uploadResponse = await fetch("/api/quote-files", { method: "POST", body: formData });
+        const uploadData = (await uploadResponse.json()) as { key?: string; name?: string; size?: number; error?: string };
+        if (!uploadResponse.ok || !uploadData.key) throw new Error(uploadData.error || "견적서 PDF를 업로드하지 못했습니다.");
+        savedQuoteFile = { key: uploadData.key, name: uploadData.name || pendingQuoteFile.name, size: uploadData.size || pendingQuoteFile.size };
+        setQuoteFileKey(savedQuoteFile.key);
+        setQuoteFileName(savedQuoteFile.name);
+        setQuoteFileSize(savedQuoteFile.size);
+        setPendingQuoteFile(null);
+      }
       const response = await fetch("/api/estimates", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -307,6 +350,10 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
           extraCosts,
           internalHeadcount,
           internalDays,
+          quotedLaborAmount,
+          quoteFileKey: savedQuoteFile.key,
+          quoteFileName: savedQuoteFile.name,
+          quoteFileSize: savedQuoteFile.size,
           sourceGroupId,
           allowLockedRevision,
           entries: rows.map((row) => ({ ...row, workSite })),
@@ -333,6 +380,10 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
       ["담당자", managerName || "미입력"],
       ["공사기간", startDate && endDate ? `${startDate} ~ ${endDate}` : startDate || endDate || "미입력"],
       ["진행상태", STATUS_LABELS[status]],
+      ["견적서상 노무비", quotedLaborAmount],
+      ["실제 투입 노무비", result.grandTotal],
+      ["노무비 집행률", quotedLaborAmount > 0 ? `${executionRate.toFixed(1)}%` : "미입력"],
+      ["잔여 노무비", quotedLaborAmount > 0 ? remainingLaborAmount : "미입력"],
       [],
       ["작업일", "작업내용", "구분", "인원", "일수", "공수", "기본노무비", "일반관리비", "공구손료", "요일가산", "합계"],
       ...result.rows.map((row) => [
@@ -404,6 +455,24 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
                 <div className="space-y-2"><Label htmlFor="startDate">공사 시작일</Label><Input id="startDate" type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} /></div>
                 <div className="space-y-2"><Label htmlFor="endDate">공사 종료일</Label><Input id="endDate" type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} /></div>
                 <div className="space-y-2"><Label htmlFor="status">진행상태</Label><Select value={status} onValueChange={(value) => setStatus(value as EstimateStatus)}><SelectTrigger id="status"><SelectValue /></SelectTrigger><SelectContent>{Object.entries(STATUS_LABELS).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select></div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-cyan-200 bg-cyan-50/30 shadow-sm">
+              <CardHeader className="border-b border-cyan-100"><div className="flex items-center gap-2"><FileText className="size-5 text-cyan-700" /><CardTitle className="text-base">견적서 및 노무비 집행현황</CardTitle></div><p className="text-sm text-slate-500">견적서 PDF를 첨부하고 견적서에 기재된 노무비 합계를 입력하면 실제 투입 노무비와 자동 비교합니다.</p></CardHeader>
+              <CardContent className="space-y-5 pt-5">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2"><Label htmlFor="quotedLaborAmount">견적서상 노무비 합계</Label><Input id="quotedLaborAmount" type="number" min="0" step="10000" value={quotedLaborAmount} onChange={(event) => setQuotedLaborAmount(Number(event.target.value))} /><p className="text-xs text-slate-500">부가세 포함 여부는 사내 기준에 맞춰 동일하게 입력해 주세요.</p></div>
+                  <div className="space-y-2"><Label htmlFor="quoteFile">견적서 PDF 첨부</Label><Input id="quoteFile" type="file" accept="application/pdf,.pdf" onChange={(event) => setPendingQuoteFile(event.target.files?.[0] ?? null)} /><div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">{pendingQuoteFile ? <span><Paperclip className="mr-1 inline size-3.5" />저장 예정: {pendingQuoteFile.name}</span> : quoteFileKey ? <a href={`/api/quote-files?key=${encodeURIComponent(quoteFileKey)}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-cyan-700 hover:underline"><ExternalLink className="size-3.5" />{quoteFileName || "첨부 견적서 열기"}</a> : <span>PDF 파일은 10MB 이하만 첨부할 수 있습니다.</span>}{(pendingQuoteFile || quoteFileKey) && <button type="button" onClick={() => { setPendingQuoteFile(null); setQuoteFileKey(""); setQuoteFileName(""); setQuoteFileSize(0); }} className="text-slate-500 underline">첨부 해제</button>}</div></div>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <CostMetric label="견적서 노무비" value={quotedLaborAmount > 0 ? formatWon(quotedLaborAmount) : "미입력"} />
+                  <CostMetric label="실제 투입 노무비" value={formatWon(result.grandTotal)} />
+                  <CostMetric label="집행률" value={quotedLaborAmount > 0 ? `${executionRate.toFixed(1)}%` : "-"} tone={executionRate > 100 ? "danger" : "normal"} />
+                  <CostMetric label={remainingLaborAmount < 0 ? "초과 금액" : "잔여 금액"} value={quotedLaborAmount > 0 ? formatWon(Math.abs(remainingLaborAmount)) : "-"} tone={remainingLaborAmount < 0 ? "danger" : "good"} />
+                </div>
+                {quotedLaborAmount > 0 && <div className="space-y-2"><div className="flex justify-between text-xs text-slate-500"><span>노무비 집행 진행률</span><span>{executionRate.toFixed(1)}%</span></div><Progress value={Math.min(executionRate, 100)} className={executionRate > 100 ? "[&_[data-slot=progress-indicator]]:bg-red-500" : "[&_[data-slot=progress-indicator]]:bg-cyan-600"} /></div>}
+                {status === "closed" && quotedLaborAmount > 0 && <div className="rounded-xl border border-slate-200 bg-white p-4"><p className="mb-3 text-sm font-medium">완료 공사 노무비 비교</p><CostComparisonChart data={[{ name: projectName || "현재 공사", quoted: quotedLaborAmount, actual: result.grandTotal }]} /></div>}
               </CardContent>
             </Card>
 
@@ -495,6 +564,8 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
             <AggregateCard title="업체별 노무비" items={monthlyCompanyTotals} />
           </div>
 
+          {closedCostData.length > 0 && <Card className="border-slate-200 shadow-sm"><CardHeader><CardTitle className="text-base">종료 공사 견적 대비 실제 노무비</CardTitle><p className="text-sm text-slate-500">최근 종료 공사의 견적서 노무비와 실제 투입 노무비를 비교합니다.</p></CardHeader><CardContent><CostComparisonChart data={closedCostData} /></CardContent></Card>}
+
           {filteredSaved.length ? (
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
               {filteredSaved.map((estimate) => (
@@ -503,6 +574,7 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
                     <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate font-medium">{estimate.projectName}</p><p className="mt-1 truncate text-sm text-slate-500">{estimate.siteName || estimate.entries[0]?.workSite || "사업장 미입력"} · {estimate.companyName || "업체명 미입력"}</p><p className="mt-1 truncate text-xs text-slate-400">{estimate.managerName || "담당자 미입력"}{estimate.startDate ? ` · ${estimate.startDate}${estimate.endDate ? ` ~ ${estimate.endDate}` : ""}` : ""}</p></div><div className="flex shrink-0 flex-col items-end gap-1"><span className={`rounded-md px-2 py-1 text-xs ${STATUS_STYLES[estimate.status]}`}>{STATUS_LABELS[estimate.status]}</span><span className="text-xs text-slate-400">v{estimate.version}</span></div></div>
                     <div className="mt-4 flex items-end justify-between gap-3"><p className="text-lg font-semibold tabular-nums">{formatWon(estimate.totalAmount)}</p><p className="text-xs text-slate-400">{new Date(estimate.updatedAt).toLocaleDateString("ko-KR")}</p></div>
                   </button>
+                  {estimate.quotedLaborAmount > 0 && <div className="mt-3 grid grid-cols-2 gap-2 rounded-lg bg-slate-50 p-2 text-xs"><div><p className="text-slate-400">집행률</p><p className={`mt-0.5 font-medium ${estimate.totalAmount > estimate.quotedLaborAmount ? "text-red-600" : "text-cyan-700"}`}>{((estimate.totalAmount / estimate.quotedLaborAmount) * 100).toFixed(1)}%</p></div><div><p className="text-slate-400">{estimate.totalAmount > estimate.quotedLaborAmount ? "초과 금액" : "잔여 금액"}</p><p className={`mt-0.5 font-medium tabular-nums ${estimate.totalAmount > estimate.quotedLaborAmount ? "text-red-600" : "text-emerald-700"}`}>{formatWon(Math.abs(estimate.quotedLaborAmount - estimate.totalAmount))}</p></div></div>}
                   <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-100 pt-3">
                     <div className="flex min-w-0 items-center gap-1"><History className="size-3.5 shrink-0 text-slate-400" />{(estimate.history || []).slice(0, 4).map((version) => <button key={version.id} onClick={() => void openVersion(version.id)} className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600 hover:bg-cyan-100">v{version.version}</button>)}</div>
                     <Button variant="ghost" size="sm" onClick={() => void changeArchive(estimate)}><Archive />{estimate.archivedAt ? "복원" : "보관"}</Button>
@@ -545,4 +617,22 @@ function summarizeEstimates(estimates: SavedEstimate[], getKey: (estimate: Saved
 
 function AggregateCard({ title, items }: { title: string; items: Array<{ name: string; total: number; count: number }> }) {
   return <Card className="border-slate-200 shadow-sm"><CardHeader className="pb-2"><CardTitle className="text-sm">{title}</CardTitle></CardHeader><CardContent className="space-y-2">{items.length ? items.slice(0, 5).map((item) => <div key={item.name} className="flex items-center justify-between gap-3 text-sm"><span className="truncate text-slate-600">{item.name} <span className="text-xs text-slate-400">{item.count}건</span></span><span className="font-medium tabular-nums">{formatWon(item.total)}</span></div>) : <p className="text-sm text-slate-400">해당 월 자료가 없습니다.</p>}</CardContent></Card>;
+}
+
+function CostMetric({ label, value, tone = "normal" }: { label: string; value: string; tone?: "normal" | "good" | "danger" }) {
+  const color = tone === "danger" ? "text-red-600" : tone === "good" ? "text-emerald-700" : "text-slate-900";
+  return <div className="rounded-xl border border-slate-200 bg-white px-4 py-3"><p className="text-xs text-slate-500">{label}</p><p className={`mt-1 text-lg font-semibold tabular-nums ${color}`}>{value}</p></div>;
+}
+
+function CostComparisonChart({ data }: { data: Array<{ name: string; quoted: number; actual: number }> }) {
+  return <ChartContainer config={COST_CHART_CONFIG} className="h-[280px] w-full aspect-auto">
+    <BarChart accessibilityLayer data={data} margin={{ top: 8, right: 8, left: 8, bottom: 8 }}>
+      <CartesianGrid vertical={false} />
+      <XAxis dataKey="name" tickLine={false} axisLine={false} interval={0} angle={data.length > 3 ? -15 : 0} textAnchor={data.length > 3 ? "end" : "middle"} height={data.length > 3 ? 55 : 30} />
+      <YAxis tickLine={false} axisLine={false} width={72} tickFormatter={(value) => `${Math.round(Number(value) / 10_000).toLocaleString("ko-KR")}만`} />
+      <ChartTooltip content={<ChartTooltipContent formatter={(value, name) => <div className="flex min-w-44 items-center justify-between gap-3"><span className="text-slate-500">{COST_CHART_CONFIG[String(name) as keyof typeof COST_CHART_CONFIG]?.label}</span><span className="font-medium tabular-nums">{formatWon(Number(value))}</span></div>} />} />
+      <Bar dataKey="quoted" fill="var(--color-quoted)" radius={[4, 4, 0, 0]} />
+      <Bar dataKey="actual" fill="var(--color-actual)" radius={[4, 4, 0, 0]} />
+    </BarChart>
+  </ChartContainer>;
 }
