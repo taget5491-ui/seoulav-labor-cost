@@ -43,12 +43,12 @@ function today() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function newRow(): LaborRow {
+function newRow(workSite = "DS기흥"): LaborRow {
   const date = today();
   return {
     id: crypto.randomUUID(),
     description: "장비 설치 및 셋업",
-    workSite: "DS기흥",
+    workSite,
     workDate: date,
     dayType: dayTypeFromDate(date),
     headcount: 2,
@@ -57,6 +57,7 @@ function newRow(): LaborRow {
 }
 
 export function LaborCostApp({ displayName }: { displayName: string }) {
+  const [workSite, setWorkSite] = useState("DS기흥");
   const [projectName, setProjectName] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [notes, setNotes] = useState("");
@@ -160,6 +161,7 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
   }
 
   function resetForm() {
+    setWorkSite("DS기흥");
     setProjectName("");
     setCompanyName("");
     setNotes("");
@@ -171,6 +173,8 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
   }
 
   function openEstimate(estimate: SavedEstimate) {
+    const savedWorkSite = estimate.entries.find((entry) => entry.workSite)?.workSite || "DS기흥";
+    setWorkSite(savedWorkSite);
     setProjectName(estimate.projectName);
     setCompanyName(estimate.companyName);
     setNotes(estimate.notes);
@@ -179,7 +183,7 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
     setInternalDays(estimate.internalDays ?? 0);
     setRows(estimate.entries.map((entry) => ({
       ...entry,
-      workSite: entry.workSite || "DS기흥",
+      workSite: savedWorkSite,
       id: crypto.randomUUID(),
     })));
     setSourceGroupId(estimate.groupId);
@@ -193,7 +197,7 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
       return;
     }
     if (rows.some((row) => !row.description.trim() || row.headcount < 1 || row.days < 0.5)) {
-      toast.error("각 작업의 공사명과 인원, 작업일수를 확인해 주세요.");
+      toast.error("작업내용과 인원, 작업일수를 확인해 주세요.");
       return;
     }
 
@@ -210,7 +214,7 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
           internalHeadcount,
           internalDays,
           sourceGroupId,
-          entries: rows,
+          entries: rows.map((row) => ({ ...row, workSite })),
         }),
       });
       const data = (await response.json()) as { error?: string; groupId?: string; version?: number };
@@ -227,12 +231,13 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
 
   function exportExcel() {
     const lines: (string | number)[][] = [
+      ["사업장", workSite],
       ["공사명", projectName || "미입력"],
       ["업체명", companyName || "미입력"],
       [],
-      ["작업일", "사업장", "공사명", "구분", "인원", "일수", "공수", "기본노무비", "일반관리비", "공구손료", "요일가산", "합계"],
+      ["작업일", "작업내용", "구분", "인원", "일수", "공수", "기본노무비", "일반관리비", "공구손료", "요일가산", "합계"],
       ...result.rows.map((row) => [
-        row.workDate, row.workSite, row.description, DAY_TYPE_LABELS[row.dayType], row.headcount,
+        row.workDate, row.description, DAY_TYPE_LABELS[row.dayType], row.headcount,
         row.days, row.units, row.baseAmount, row.adminAmount, row.toolAmount,
         row.surchargeAmount, row.totalAmount,
       ]),
@@ -281,7 +286,14 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
           <div className="space-y-5">
             <Card className="border-slate-200 shadow-sm">
               <CardHeader className="border-b border-slate-100"><CardTitle className="text-base">공사 정보</CardTitle></CardHeader>
-              <CardContent className="grid gap-4 pt-5 md:grid-cols-2">
+              <CardContent className="grid gap-4 pt-5 md:grid-cols-3">
+                <div className="space-y-2">
+                  <Label htmlFor="workSite">사업장</Label>
+                  <Select value={workSite} onValueChange={(value) => { setWorkSite(value); setRows((current) => current.map((row) => ({ ...row, workSite: value }))); }}>
+                    <SelectTrigger id="workSite" className="w-full" aria-label="사업장"><SelectValue /></SelectTrigger>
+                    <SelectContent>{WORK_SITES.map((site) => <SelectItem key={site} value={site}>{site}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
                 <div className="space-y-2"><Label htmlFor="projectName">공사명</Label><Input id="projectName" value={projectName} onChange={(event) => setProjectName(event.target.value)} placeholder="예: DS기흥 회의실 AV 개선공사" /></div>
                 <div className="space-y-2"><Label htmlFor="companyName">업체명</Label><Input id="companyName" value={companyName} onChange={(event) => setCompanyName(event.target.value)} placeholder="예: RTA, 일리스, 에스큐브랩" /></div>
               </CardContent>
@@ -290,24 +302,16 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
             <Card className="border-slate-200 shadow-sm">
               <CardHeader className="flex-row items-center justify-between border-b border-slate-100">
                 <div><CardTitle className="text-base">투입 계획</CardTitle><p className="mt-1 text-sm text-slate-500">직급 구분 없이 모든 인원에 동일한 기준 단가가 적용됩니다.</p></div>
-                <Button variant="outline" size="sm" onClick={() => setRows((current) => [...current, newRow()])}><Plus /> 작업 추가</Button>
+                <Button variant="outline" size="sm" onClick={() => setRows((current) => [...current, newRow(workSite)])}><Plus /> 작업 추가</Button>
               </CardHeader>
               <CardContent className="p-0">
                 <Table>
-                  <TableHeader><TableRow className="bg-slate-50"><TableHead className="min-w-[145px] pl-5">작업일</TableHead><TableHead className="min-w-[155px]">사업장</TableHead><TableHead className="min-w-[210px]">공사명</TableHead><TableHead className="min-w-[120px]">구분</TableHead><TableHead className="w-[92px]">인원</TableHead><TableHead className="w-[92px]">일수</TableHead><TableHead className="min-w-[125px] text-right">금액</TableHead><TableHead className="w-12" /></TableRow></TableHeader>
+                  <TableHeader><TableRow className="bg-slate-50"><TableHead className="min-w-[145px] pl-5">작업일</TableHead><TableHead className="min-w-[420px]">작업내용</TableHead><TableHead className="min-w-[120px]">구분</TableHead><TableHead className="w-[92px]">인원</TableHead><TableHead className="w-[92px]">일수</TableHead><TableHead className="min-w-[125px] text-right">금액</TableHead><TableHead className="w-12" /></TableRow></TableHeader>
                   <TableBody>
                     {result.rows.map((row) => (
                       <TableRow key={row.id}>
                         <TableCell className="pl-5"><Input type="date" value={row.workDate} onChange={(event) => { const workDate = event.target.value; updateRow(row.id, { workDate, dayType: dayTypeFromDate(workDate) }); }} aria-label="작업일" /></TableCell>
-                        <TableCell>
-                          <Select value={row.workSite} onValueChange={(value) => updateRow(row.id, { workSite: value })}>
-                            <SelectTrigger className="w-full" aria-label="사업장"><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              {WORK_SITES.map((site) => <SelectItem key={site} value={site}>{site}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
-                        </TableCell>
-                        <TableCell><Input value={row.description} onChange={(event) => updateRow(row.id, { description: event.target.value })} placeholder="공사명 입력" aria-label="공사명" /></TableCell>
+                        <TableCell><Textarea value={row.description} onChange={(event) => updateRow(row.id, { description: event.target.value })} placeholder="작업내용을 상세히 입력하세요." aria-label="작업내용" className="min-h-16 min-w-[420px] resize-y" /></TableCell>
                         <TableCell>
                           <Select value={row.dayType} onValueChange={(value) => updateRow(row.id, { dayType: value as DayType })}>
                             <SelectTrigger className="w-full" aria-label="근무 구분"><SelectValue /></SelectTrigger>
