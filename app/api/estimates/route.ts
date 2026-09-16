@@ -8,6 +8,7 @@ export const dynamic = "force-dynamic";
 const rowSchema = z.object({
   id: z.string().min(1),
   description: z.string().trim().min(1).max(100),
+  workSite: z.string().trim().min(1).max(50),
   workDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   dayType: z.enum(["weekday", "saturday", "holiday"]),
   headcount: z.coerce.number().int().min(1).max(100),
@@ -17,8 +18,11 @@ const rowSchema = z.object({
 const estimateSchema = z.object({
   projectName: z.string().trim().min(1).max(120),
   siteName: z.string().trim().max(120).default(""),
+  companyName: z.string().trim().max(120).default(""),
   notes: z.string().trim().max(1000).default(""),
   extraCosts: z.coerce.number().int().min(0).max(1_000_000_000).default(0),
+  internalHeadcount: z.coerce.number().int().min(0).max(100).default(0),
+  internalDays: z.coerce.number().min(0).max(365).default(0),
   sourceGroupId: z.string().nullable().optional(),
   entries: z.array(rowSchema).min(1).max(100),
 });
@@ -67,15 +71,20 @@ export async function GET() {
         version: item.version,
         projectName: item.project_name,
         siteName: item.site_name,
+        companyName: item.company_name,
         status: item.status,
         notes: item.notes,
         extraCosts: item.extra_costs,
+        internalHeadcount: item.internal_headcount,
+        internalDays: item.internal_days,
+        internalLaborAmount: item.internal_labor_amount,
         totalAmount: item.total_amount,
         createdByEmail: item.created_by_email,
         updatedAt: item.updated_at,
         entries: (entriesByEstimate.get(String(item.id)) ?? []).map((entry) => ({
           id: entry.id,
           description: entry.description,
+          workSite: entry.work_site,
           workDate: entry.work_date,
           dayType: entry.day_type,
           headcount: entry.headcount,
@@ -104,26 +113,35 @@ export async function POST(request: Request) {
     const version = Number(versionResult?.latest ?? 0) + 1;
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
-    const calculation = calculateEstimate(input.entries as LaborRow[], input.extraCosts, DEFAULT_RATES);
+    const calculation = calculateEstimate(
+      input.entries as LaborRow[],
+      input.extraCosts,
+      DEFAULT_RATES,
+      input.internalHeadcount,
+      input.internalDays,
+    );
 
     const statements = [
       db.prepare(
         `INSERT INTO estimates (
-          id, group_id, version, project_name, site_name, status, notes,
-          extra_costs, total_amount, created_by, created_by_email, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?)`,
+          id, group_id, version, project_name, site_name, company_name, status, notes,
+          extra_costs, internal_headcount, internal_days, internal_labor_amount,
+          total_amount, created_by, created_by_email, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind(
-        id, groupId, version, input.projectName, input.siteName, input.notes,
-        calculation.extraCosts, calculation.grandTotal, user.userId, user.email, now, now,
+        id, groupId, version, input.projectName, input.siteName, input.companyName,
+        input.notes, calculation.extraCosts, calculation.internalHeadcount,
+        calculation.internalDays, calculation.internalLaborAmount,
+        calculation.grandTotal, user.userId, user.email, now, now,
       ),
       ...calculation.rows.map((row, index) => db.prepare(
         `INSERT INTO labor_entries (
-          id, estimate_id, description, work_date, day_type, headcount, days,
+          id, estimate_id, description, work_site, work_date, day_type, headcount, days,
           base_rate, admin_rate, tool_rate, day_surcharge, base_amount,
           admin_amount, tool_amount, surcharge_amount, total_amount, sort_order
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind(
-        crypto.randomUUID(), id, row.description, row.workDate, row.dayType,
+        crypto.randomUUID(), id, row.description, row.workSite, row.workDate, row.dayType,
         row.headcount, row.days, DEFAULT_RATES.baseRate, DEFAULT_RATES.adminRate,
         DEFAULT_RATES.toolRate, row.daySurcharge, row.baseAmount, row.adminAmount,
         row.toolAmount, row.surchargeAmount, row.totalAmount, index,

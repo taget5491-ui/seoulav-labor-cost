@@ -8,6 +8,13 @@
       "when": 1789546365882,
       "tag": "0000_clean_whizzer",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1789600125290,
+      "tag": "0001_elite_spitfire",
+      "breakpoints": true
     }
   ]
 }
