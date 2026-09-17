@@ -1,10 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Archive, Calculator, CalendarDays, Download, ExternalLink, FileClock, FileText, History, Lock, Paperclip, Plus, Printer, RotateCcw, Save, Search, Trash2, Users } from "lucide-react";
+import { Archive, Calculator, CalendarDays, Download, ExternalLink, FileClock, FileInput, FileText, History, Lock, Paperclip, Plus, Printer, RotateCcw, Save, Search, Trash2, Users } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { DailyReportImportDialog, type DailyReportImportResult } from "@/components/daily-report-import-dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 import { Input } from "@/components/ui/input";
@@ -14,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { extractDirectCostLabor, type LaborExtractionResult } from "@/lib/pdf-labor";
+import { candidateDayType } from "@/lib/daily-report";
 import {
   calculateEstimate,
   CONTRACTOR_TYPE_LABELS,
@@ -126,6 +128,7 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
   const [siteFilter, setSiteFilter] = useState("all");
   const [reportMonth, setReportMonth] = useState(today().slice(0, 7));
   const [includeArchived, setIncludeArchived] = useState(false);
+  const [dailyReportOpen, setDailyReportOpen] = useState(false);
 
   const result = useMemo(
     () => calculateEstimate(rows, extraCosts, DEFAULT_RATES, internalHeadcount, internalDays),
@@ -161,7 +164,8 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
   }, []);
 
   useEffect(() => {
-    void loadSaved();
+    const timer = window.setTimeout(() => void loadSaved(), 0);
+    return () => window.clearTimeout(timer);
   }, [loadSaved]);
 
   useEffect(() => {
@@ -236,6 +240,37 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
 
   function updateRow(id: string, patch: Partial<LaborRow>) {
     setRows((current) => current.map((row) => (row.id === id ? { ...row, ...patch } : row)));
+  }
+
+  function applyDailyReport({ extraction, actions }: DailyReportImportResult) {
+    const projectChanged = projectName.trim() && extraction.projectName.trim() && projectName.trim() !== extraction.projectName.trim();
+    const siteChanged = workSite && extraction.inferredSiteName && workSite !== extraction.inferredSiteName;
+    if ((projectChanged || siteChanged) && !window.confirm("현재 공사 정보와 공사일보의 내용이 다릅니다. 공사일보 정보로 변경하고 선택한 투입 행을 병합할까요?")) return;
+
+    setProjectName(extraction.projectName || projectName);
+    setWorkSite(extraction.inferredSiteName || workSite);
+    setStartDate(extraction.startDate || startDate);
+    setEndDate(extraction.endDate || endDate);
+    setRows((current) => {
+      const next = [...current];
+      for (const candidate of extraction.laborCandidates) {
+        const action = actions[candidate.id] ?? "exclude";
+        if (action === "exclude" || candidate.shift === "night") continue;
+        const matchingIndex = next.findIndex((row) => row.workDate === candidate.workDate && row.contractorType === candidate.contractorType && row.contractorName === candidate.contractorName && row.description.trim() === candidate.description.trim());
+        if (action === "merge" && matchingIndex >= 0) {
+          next[matchingIndex] = { ...next[matchingIndex], headcount: next[matchingIndex].headcount + candidate.headcount };
+          continue;
+        }
+        next.push({
+          id: crypto.randomUUID(), description: candidate.description, workSite: extraction.inferredSiteName || workSite,
+          workDate: candidate.workDate, dayType: candidateDayType(candidate), headcount: candidate.headcount, days: candidate.days,
+          contractorType: candidate.contractorType, contractorName: candidate.contractorName, contractorQuoteAmount: candidate.contractorQuoteAmount,
+        });
+      }
+      return next;
+    });
+    setDailyReportOpen(false);
+    toast.success("검토한 공사일보 항목을 투입 계획에 적용했습니다. 아직 저장되지는 않았습니다.");
   }
 
   function resetForm() {
@@ -525,9 +560,9 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
             </Card>
 
             <Card className="border-slate-200 shadow-sm">
-              <CardHeader className="flex-row items-center justify-between border-b border-slate-100">
+              <CardHeader className="flex-row items-center justify-between gap-3 border-b border-slate-100">
                 <div><CardTitle className="text-base">투입 계획</CardTitle><p className="mt-1 text-sm text-slate-500">외부업체는 받은 견적금액을 입력하고, 자체 투입은 외부업체 비용에서 제외합니다.</p></div>
-                <Button variant="outline" size="sm" onClick={() => setRows((current) => [...current, newRow(workSite)])}><Plus /> 작업 추가</Button>
+                <div className="flex shrink-0 flex-wrap justify-end gap-2"><Button variant="outline" size="sm" onClick={() => setDailyReportOpen(true)}><FileInput /> 공사일보 PDF 불러오기</Button><Button variant="outline" size="sm" onClick={() => setRows((current) => [...current, newRow(workSite)])}><Plus /> 작업 추가</Button></div>
               </CardHeader>
               <CardContent className="p-0">
                 <Table>
@@ -644,6 +679,7 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
           ) : <div className="rounded-xl border border-dashed border-slate-300 bg-white px-5 py-10 text-center text-sm text-slate-500">조건에 맞는 저장 견적이 없습니다.</div>}
         </section>
       </main>
+      <DailyReportImportDialog open={dailyReportOpen} onOpenChange={setDailyReportOpen} existingRows={rows} onApply={applyDailyReport} />
     </div>
   );
 }
