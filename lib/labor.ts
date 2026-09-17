@@ -1,4 +1,5 @@
 export type DayType = "weekday" | "saturday" | "holiday";
+export type ContractorType = "self" | "rta" | "vsent" | "coreworker" | "direct";
 
 export type LaborRow = {
   id: string;
@@ -8,6 +9,9 @@ export type LaborRow = {
   dayType: DayType;
   headcount: number;
   days: number;
+  contractorType: ContractorType;
+  contractorName: string;
+  contractorQuoteAmount: number;
 };
 
 export type LaborRates = {
@@ -27,6 +31,14 @@ export const DEFAULT_RATES: LaborRates = {
 };
 
 export const INTERNAL_LABOR_RATE = 300_000;
+
+export const CONTRACTOR_TYPE_LABELS: Record<ContractorType, string> = {
+  self: "자체",
+  rta: "RTA",
+  vsent: "VSEnt",
+  coreworker: "코어워커",
+  direct: "직접입력",
+};
 
 export const WORK_SITES = [
   "DS기흥",
@@ -74,6 +86,9 @@ export function calculateRow(row: LaborRow, rates = DEFAULT_RATES) {
       ? rates.saturdaySurcharge
       : 0;
   const surchargeAmount = Math.round(units * daySurcharge);
+  const contractorQuoteAmount = row.contractorType === "self"
+    ? 0
+    : Math.max(0, Math.round(Number(row.contractorQuoteAmount) || 0));
 
   return {
     units,
@@ -83,6 +98,7 @@ export function calculateRow(row: LaborRow, rates = DEFAULT_RATES) {
     toolAmount,
     surchargeAmount,
     totalAmount: baseAmount + adminAmount + toolAmount + surchargeAmount,
+    contractorQuoteAmount,
   };
 }
 
@@ -110,6 +126,7 @@ export function calculateEstimate(
   const safeInternalDays = Math.max(0, Number(internalDays) || 0);
   const internalWorkUnits = safeInternalHeadcount * safeInternalDays;
   const internalLaborAmount = Math.round(internalWorkUnits * INTERNAL_LABOR_RATE);
+  const externalContractorAmount = calculatedRows.reduce((sum, row) => sum + row.contractorQuoteAmount, 0);
   return {
     rows: calculatedRows,
     ...totals,
@@ -118,7 +135,9 @@ export function calculateEstimate(
     internalDays: safeInternalDays,
     internalWorkUnits,
     internalLaborAmount,
-    grandTotal: totals.totalAmount + internalLaborAmount + safeExtraCosts,
+    externalContractorAmount,
+    grandTotal: externalContractorAmount + internalLaborAmount,
+    totalCost: externalContractorAmount + internalLaborAmount + safeExtraCosts,
   };
 }
 

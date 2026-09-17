@@ -16,6 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { extractDirectCostLabor, type LaborExtractionResult } from "@/lib/pdf-labor";
 import {
   calculateEstimate,
+  CONTRACTOR_TYPE_LABELS,
   dayTypeFromDate,
   DAY_TYPE_LABELS,
   DEFAULT_RATES,
@@ -23,6 +24,7 @@ import {
   INTERNAL_LABOR_RATE,
   WORK_SITES,
   type DayType,
+  type ContractorType,
   type LaborRow,
 } from "@/lib/labor";
 
@@ -89,6 +91,9 @@ function newRow(workSite = "DS기흥"): LaborRow {
     dayType: dayTypeFromDate(date),
     headcount: 2,
     days: 1,
+    contractorType: "self",
+    contractorName: "",
+    contractorQuoteAmount: 0,
   };
 }
 
@@ -187,8 +192,11 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
                   dayType: { enum: ["weekday", "saturday", "holiday"] },
                   headcount: { type: "number", minimum: 1 },
                   days: { type: "number", minimum: 0.5 },
+                  contractorType: { enum: ["self", "rta", "vsent", "coreworker", "direct"] },
+                  contractorName: { type: "string" },
+                  contractorQuoteAmount: { type: "number", minimum: 0 },
                 },
-                required: ["description", "workSite", "workDate", "dayType", "headcount", "days"],
+                required: ["description", "workSite", "workDate", "dayType", "headcount", "days", "contractorType", "contractorName", "contractorQuoteAmount"],
               },
             },
             extraCosts: { type: "number", minimum: 0 },
@@ -353,6 +361,10 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
       toast.error("작업내용과 인원, 작업일수를 확인해 주세요.");
       return;
     }
+    if (rows.some((row) => row.contractorType === "direct" && !row.contractorName.trim())) {
+      toast.error("직접입력을 선택한 작업의 업체명을 입력해 주세요.");
+      return;
+    }
 
     setSaving(true);
     try {
@@ -419,18 +431,20 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
       ["노무비 집행률", quotedLaborAmount > 0 ? `${executionRate.toFixed(1)}%` : "미입력"],
       ["잔여 노무비", quotedLaborAmount > 0 ? remainingLaborAmount : "미입력"],
       [],
-      ["작업일", "작업내용", "구분", "인원", "일수", "공수", "기본노무비", "일반관리비", "공구손료", "요일가산", "합계"],
+      ["투입일자", "작업내용", "투입구분", "업체명", "업체 견적금액", "근무구분", "인원", "일수"],
       ...result.rows.map((row) => [
-        row.workDate, row.description, DAY_TYPE_LABELS[row.dayType], row.headcount,
-        row.days, row.units, row.baseAmount, row.adminAmount, row.toolAmount,
-        row.surchargeAmount, row.totalAmount,
+        row.workDate, row.description, CONTRACTOR_TYPE_LABELS[row.contractorType],
+        row.contractorType === "self" ? "외부업체 없음" : row.contractorName,
+        row.contractorQuoteAmount, DAY_TYPE_LABELS[row.dayType], row.headcount, row.days,
       ]),
       [],
       ["공무기술팀 인원", internalHeadcount],
       ["공무기술팀 작업일수", internalDays],
       ["공무기술팀 노무비", result.internalLaborAmount],
+      ["외부업체 견적 합계", result.externalContractorAmount],
+      ["실제 투입 노무비", result.grandTotal],
       ["추가비용", extraCosts],
-      ["총 노무비", result.grandTotal],
+      ["총 투입비용", result.totalCost],
       ["비고", notes],
     ];
     const content = `\uFEFF${lines.map((line) => line.map((cell) => String(cell ?? "").replaceAll("\t", " ")).join("\t")).join("\n")}`;
@@ -512,17 +526,29 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
 
             <Card className="border-slate-200 shadow-sm">
               <CardHeader className="flex-row items-center justify-between border-b border-slate-100">
-                <div><CardTitle className="text-base">투입 계획</CardTitle><p className="mt-1 text-sm text-slate-500">직급 구분 없이 모든 인원에 동일한 기준 단가가 적용됩니다.</p></div>
+                <div><CardTitle className="text-base">투입 계획</CardTitle><p className="mt-1 text-sm text-slate-500">외부업체는 받은 견적금액을 입력하고, 자체 투입은 외부업체 비용에서 제외합니다.</p></div>
                 <Button variant="outline" size="sm" onClick={() => setRows((current) => [...current, newRow(workSite)])}><Plus /> 작업 추가</Button>
               </CardHeader>
               <CardContent className="p-0">
                 <Table>
-                  <TableHeader><TableRow className="bg-slate-50"><TableHead className="min-w-[145px] pl-5">작업일</TableHead><TableHead className="min-w-[420px]">작업내용</TableHead><TableHead className="min-w-[120px]">구분</TableHead><TableHead className="w-[92px]">인원</TableHead><TableHead className="w-[92px]">일수</TableHead><TableHead className="min-w-[125px] text-right">금액</TableHead><TableHead className="w-12" /></TableRow></TableHeader>
+                  <TableHeader><TableRow className="bg-slate-50"><TableHead className="min-w-[145px] pl-5">투입일자</TableHead><TableHead className="min-w-[300px]">작업내용</TableHead><TableHead className="min-w-[145px]">투입구분</TableHead><TableHead className="min-w-[150px]">업체명</TableHead><TableHead className="min-w-[155px]">업체 견적금액</TableHead><TableHead className="min-w-[115px]">근무구분</TableHead><TableHead className="w-[85px]">인원</TableHead><TableHead className="w-[85px]">일수</TableHead><TableHead className="w-12" /></TableRow></TableHeader>
                   <TableBody>
                     {result.rows.map((row) => (
                       <TableRow key={row.id}>
-                        <TableCell className="pl-5"><Input type="date" value={row.workDate} onChange={(event) => { const workDate = event.target.value; updateRow(row.id, { workDate, dayType: dayTypeFromDate(workDate) }); }} aria-label="작업일" /></TableCell>
-                        <TableCell><Textarea value={row.description} onChange={(event) => updateRow(row.id, { description: event.target.value })} placeholder="작업내용을 상세히 입력하세요." aria-label="작업내용" className="min-h-16 min-w-[420px] resize-y" /></TableCell>
+                        <TableCell className="pl-5"><Input type="date" value={row.workDate} onChange={(event) => { const workDate = event.target.value; updateRow(row.id, { workDate, dayType: dayTypeFromDate(workDate) }); }} aria-label="투입일자" /></TableCell>
+                        <TableCell><Textarea value={row.description} onChange={(event) => updateRow(row.id, { description: event.target.value })} placeholder="작업내용을 상세히 입력하세요." aria-label="작업내용" className="min-h-16 min-w-[300px] resize-y" /></TableCell>
+                        <TableCell>
+                          <Select value={row.contractorType} onValueChange={(value) => {
+                            const contractorType = value as ContractorType;
+                            const presetName = contractorType === "rta" ? "RTA" : contractorType === "vsent" ? "VSEnt" : contractorType === "coreworker" ? "코어워커" : "";
+                            updateRow(row.id, { contractorType, contractorName: presetName, contractorQuoteAmount: contractorType === "self" ? 0 : row.contractorQuoteAmount });
+                          }}>
+                            <SelectTrigger className="w-full" aria-label="투입구분"><SelectValue /></SelectTrigger>
+                            <SelectContent>{Object.entries(CONTRACTOR_TYPE_LABELS).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent>
+                          </Select>
+                        </TableCell>
+                        <TableCell>{row.contractorType === "self" ? <span className="text-sm text-slate-400">외부업체 없음</span> : row.contractorType === "direct" ? <Input value={row.contractorName} onChange={(event) => updateRow(row.id, { contractorName: event.target.value })} placeholder="업체명 입력" aria-label="업체명" /> : <span className="text-sm text-slate-700">{row.contractorName}</span>}</TableCell>
+                        <TableCell><Input type="number" min="0" step="10000" value={row.contractorQuoteAmount} disabled={row.contractorType === "self"} onChange={(event) => updateRow(row.id, { contractorQuoteAmount: Number(event.target.value) })} aria-label="업체 견적금액" /></TableCell>
                         <TableCell>
                           <Select value={row.dayType} onValueChange={(value) => updateRow(row.id, { dayType: value as DayType })}>
                             <SelectTrigger className="w-full" aria-label="근무 구분"><SelectValue /></SelectTrigger>
@@ -531,7 +557,6 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
                         </TableCell>
                         <TableCell><Input type="number" min="1" max="100" value={row.headcount} onChange={(event) => updateRow(row.id, { headcount: Number(event.target.value) })} aria-label="투입 인원" /></TableCell>
                         <TableCell><Input type="number" min="0.5" step="0.5" value={row.days} onChange={(event) => updateRow(row.id, { days: Number(event.target.value) })} aria-label="작업일수" /></TableCell>
-                        <TableCell className="text-right font-semibold tabular-nums">{formatWon(row.totalAmount)}</TableCell>
                         <TableCell><Button variant="ghost" size="icon-sm" aria-label="작업 삭제" disabled={rows.length === 1} onClick={() => setRows((current) => current.filter((item) => item.id !== row.id))}><Trash2 className="text-slate-500" /></Button></TableCell>
                       </TableRow>
                     ))}
@@ -566,11 +591,11 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
               <CardHeader className="border-b border-white/10"><div className="flex items-center justify-between"><CardTitle className="text-base text-white">산출 결과</CardTitle><span className="rounded-full bg-cyan-400/15 px-2.5 py-1 text-xs text-cyan-300">실시간 계산</span></div></CardHeader>
               <CardContent className="space-y-4 pt-5">
                 <div className="grid grid-cols-2 gap-3"><SummaryMetric icon={<Users />} label="총 공수" value={`${(result.units + result.internalWorkUnits).toLocaleString("ko-KR")}인일`} /><SummaryMetric icon={<CalendarDays />} label="작업 항목" value={`${rows.length}건`} /></div>
-                <div className="space-y-2.5 border-t border-white/10 pt-4 text-sm"><SummaryLine label="외부 기본 노무비" value={result.baseAmount} /><SummaryLine label="일반관리비 10%" value={result.adminAmount} /><SummaryLine label="공구손료 3%" value={result.toolAmount} /><SummaryLine label="요일 가산" value={result.surchargeAmount} /><SummaryLine label="공무기술팀 노무비" value={result.internalLaborAmount} /><SummaryLine label="추가 비용" value={result.extraCosts} /></div>
-                <div className="border-t border-white/15 pt-4"><p className="text-sm text-slate-300">총 노무비</p><p className="mt-1 text-3xl font-semibold tracking-tight text-cyan-300 tabular-nums">{formatWon(result.grandTotal)}</p></div>
+                <div className="space-y-2.5 border-t border-white/10 pt-4 text-sm"><SummaryLine label="외부업체 견적 합계" value={result.externalContractorAmount} /><SummaryLine label="공무기술팀 노무비" value={result.internalLaborAmount} /><SummaryLine label="추가 비용" value={result.extraCosts} /></div>
+                <div className="border-t border-white/15 pt-4"><p className="text-sm text-slate-300">실제 투입 노무비</p><p className="mt-1 text-3xl font-semibold tracking-tight text-cyan-300 tabular-nums">{formatWon(result.grandTotal)}</p><p className="mt-2 text-xs text-slate-300">추가 비용 포함 총액 {formatWon(result.totalCost)}</p></div>
               </CardContent>
             </Card>
-            <Card className="border-slate-200 shadow-sm"><CardHeader><CardTitle className="text-base">적용 기준</CardTitle></CardHeader><CardContent className="space-y-3 text-sm"><RateLine label="외부업체 평일" value={339_000} /><RateLine label="외부업체 토요일" value={389_000} /><RateLine label="외부업체 휴일" value={439_000} /><RateLine label="공무기술팀" value={INTERNAL_LABOR_RATE} /><p className="border-t border-slate-100 pt-3 text-xs leading-5 text-slate-500">외부업체는 기본 노무비에 일반관리비와 공구손료를 적용하며, 공무기술팀은 인당 30만원만 계산합니다.</p></CardContent></Card>
+            <Card className="border-slate-200 shadow-sm"><CardHeader><CardTitle className="text-base">집계 기준</CardTitle></CardHeader><CardContent className="space-y-3 text-sm"><div className="flex items-center justify-between gap-4"><span className="text-slate-600">외부업체</span><span className="font-medium">입력 견적금액</span></div><div className="flex items-center justify-between gap-4"><span className="text-slate-600">자체 투입</span><span className="font-medium">외부비용 없음</span></div><div className="flex items-center justify-between gap-4"><span className="text-slate-600">공무기술팀</span><span className="font-medium tabular-nums">{formatWon(INTERNAL_LABOR_RATE)} / 인일</span></div><p className="border-t border-slate-100 pt-3 text-xs leading-5 text-slate-500">실제 투입 노무비는 외부업체 견적금액과 공무기술팀 노무비를 항상 합산합니다.</p></CardContent></Card>
           </aside>
         </div>
 
@@ -629,10 +654,6 @@ function SummaryMetric({ icon, label, value }: { icon: React.ReactNode; label: s
 
 function SummaryLine({ label, value }: { label: string; value: number }) {
   return <div className="flex items-center justify-between gap-4"><span className="text-slate-300">{label}</span><span className="tabular-nums">{formatWon(value)}</span></div>;
-}
-
-function RateLine({ label, value }: { label: string; value: number }) {
-  return <div className="flex items-center justify-between gap-4"><span className="text-slate-600">{label}</span><span className="font-semibold tabular-nums">{formatWon(value)}</span></div>;
 }
 
 function ManagementMetric({ label, value }: { label: string; value: string }) {
