@@ -1,0 +1,41 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1789546365882,
+      "tag": "0000_clean_whizzer",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1789600125290,
+      "tag": "0001_elite_spitfire",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1789602244428,
+      "tag": "0002_groovy_sabretooth",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1789603143791,
+      "tag": "0003_safe_corsair",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1789606692606,
+      "tag": "0004_parched_guardian",
+      "breakpoints": true
+    }
+  ]
+}
