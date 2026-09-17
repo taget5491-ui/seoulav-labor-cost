@@ -3,7 +3,7 @@ import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 export type LaborExtractionMatch = {
   page: number;
   amount: number;
-  method: "column" | "position";
+  method: "second_amount";
 };
 
 export type LaborExtractionResult = {
@@ -44,24 +44,12 @@ function groupRows(items: PositionedText[]) {
 }
 
 function findLaborAmount(rows: PositionedText[][]) {
-  const laborHeaders = rows.flatMap((row) => row.filter((item) => compact(item.text).includes("노무비")));
   const targetRows = rows.filter((row) => compact(row.map((item) => item.text).join(" ")).includes("직접비계"));
-  const results: Array<{ amount: number; method: "column" | "position" }> = [];
+  const results: Array<{ amount: number; method: "second_amount" }> = [];
 
   for (const row of targetRows) {
     const numericItems = row.map((item) => ({ item, amount: parseAmount(item.text) })).filter((candidate): candidate is { item: PositionedText; amount: number } => candidate.amount !== null);
-    if (!numericItems.length) continue;
-
-    if (laborHeaders.length) {
-      const rowY = row[0].y;
-      const header = [...laborHeaders].sort((a, b) => Math.abs(a.y - rowY) - Math.abs(b.y - rowY))[0];
-      const headerCenter = header.x + header.width / 2;
-      const selected = [...numericItems].sort((a, b) => Math.abs((a.item.x + a.item.width / 2) - headerCenter) - Math.abs((b.item.x + b.item.width / 2) - headerCenter))[0];
-      results.push({ amount: selected.amount, method: "column" });
-      continue;
-    }
-
-    if (numericItems.length >= 2) results.push({ amount: numericItems[1].amount, method: "position" });
+    if (numericItems.length >= 2) results.push({ amount: numericItems[1].amount, method: "second_amount" });
   }
 
   return results;
