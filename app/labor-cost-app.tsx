@@ -13,6 +13,7 @@ import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import { extractDirectCostLabor, type LaborExtractionResult } from "@/lib/pdf-labor";
 import {
   calculateEstimate,
   dayTypeFromDate,
@@ -108,6 +109,8 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
   const [quoteFileName, setQuoteFileName] = useState("");
   const [quoteFileSize, setQuoteFileSize] = useState(0);
   const [pendingQuoteFile, setPendingQuoteFile] = useState<File | null>(null);
+  const [extractingQuote, setExtractingQuote] = useState(false);
+  const [quoteExtraction, setQuoteExtraction] = useState<LaborExtractionResult | null>(null);
   const [rows, setRows] = useState<LaborRow[]>([newRow()]);
   const [sourceGroupId, setSourceGroupId] = useState<string | null>(null);
   const [saved, setSaved] = useState<SavedEstimate[]>([]);
@@ -244,6 +247,8 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
     setQuoteFileName("");
     setQuoteFileSize(0);
     setPendingQuoteFile(null);
+    setExtractingQuote(false);
+    setQuoteExtraction(null);
     setRows([newRow()]);
     setSourceGroupId(null);
     setAllowLockedRevision(false);
@@ -267,6 +272,8 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
     setQuoteFileName(estimate.quoteFileName || "");
     setQuoteFileSize(estimate.quoteFileSize || 0);
     setPendingQuoteFile(null);
+    setExtractingQuote(false);
+    setQuoteExtraction(null);
     setRows(estimate.entries.map((entry) => ({
       ...entry,
       workSite: savedWorkSite,
@@ -276,6 +283,33 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
     setAllowLockedRevision(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
     toast.info(`v${estimate.version} 견적을 불러왔습니다.`);
+  }
+
+  async function handleQuoteFile(file: File | null) {
+    setPendingQuoteFile(file);
+    setQuoteExtraction(null);
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith(".pdf") && file.type !== "application/pdf") {
+      toast.error("PDF 파일만 첨부할 수 있습니다.");
+      setPendingQuoteFile(null);
+      return;
+    }
+    setExtractingQuote(true);
+    try {
+      const extraction = await extractDirectCostLabor(file);
+      setQuoteExtraction(extraction);
+      if (extraction.matches.length > 0) {
+        setQuotedLaborAmount(extraction.total);
+        toast.success(`직접비계 노무비 ${extraction.matches.length}건을 합산했습니다.`);
+      } else {
+        toast.warning("직접비계의 노무비 금액을 찾지 못했습니다. 스캔 PDF이거나 표 형식이 다른 경우 직접 입력해 주세요.");
+      }
+    } catch (error) {
+      console.error("Failed to extract labor amount", error);
+      toast.error("PDF에서 노무비를 읽지 못했습니다. 금액을 직접 입력해 주세요.");
+    } finally {
+      setExtractingQuote(false);
+    }
   }
 
   async function openVersion(versionId: string) {
@@ -430,7 +464,7 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
             <Button variant="outline" onClick={exportExcel}><Download /> 엑셀 내보내기</Button>
             <Button variant="outline" onClick={() => window.print()}><Printer /> PDF 출력</Button>
             {isLocked && <Button variant="outline" onClick={() => { setAllowLockedRevision(true); setStatus("draft"); toast.info("수정본 작성 상태로 전환했습니다."); }}><Lock /> 수정본 만들기</Button>}
-            <Button onClick={saveEstimate} disabled={saving || isLocked} className="bg-cyan-600 hover:bg-cyan-700"><Save /> {saving ? "저장 중" : isLocked ? "확정 잠금" : "견적 저장"}</Button>
+            <Button onClick={saveEstimate} disabled={saving || extractingQuote || isLocked} className="bg-cyan-600 hover:bg-cyan-700"><Save /> {saving ? "저장 중" : extractingQuote ? "PDF 분석 중" : isLocked ? "확정 잠금" : "견적 저장"}</Button>
           </div>
         </div>
 
@@ -459,11 +493,11 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
             </Card>
 
             <Card className="border-cyan-200 bg-cyan-50/30 shadow-sm">
-              <CardHeader className="border-b border-cyan-100"><div className="flex items-center gap-2"><FileText className="size-5 text-cyan-700" /><CardTitle className="text-base">견적서 및 노무비 집행현황</CardTitle></div><p className="text-sm text-slate-500">견적서 PDF를 첨부하고 견적서에 기재된 노무비 합계를 입력하면 실제 투입 노무비와 자동 비교합니다.</p></CardHeader>
+              <CardHeader className="border-b border-cyan-100"><div className="flex items-center gap-2"><FileText className="size-5 text-cyan-700" /><CardTitle className="text-base">견적서 및 노무비 집행현황</CardTitle></div><p className="text-sm text-slate-500">견적서 PDF의 각 시트에서 직접비계 항목의 노무비 금액만 찾아 모두 합산합니다. 인식된 금액은 확인 후 직접 수정할 수 있습니다.</p></CardHeader>
               <CardContent className="space-y-5 pt-5">
                 <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2"><Label htmlFor="quotedLaborAmount">견적서상 노무비 합계</Label><Input id="quotedLaborAmount" type="number" min="0" step="10000" value={quotedLaborAmount} onChange={(event) => setQuotedLaborAmount(Number(event.target.value))} /><p className="text-xs text-slate-500">부가세 포함 여부는 사내 기준에 맞춰 동일하게 입력해 주세요.</p></div>
-                  <div className="space-y-2"><Label htmlFor="quoteFile">견적서 PDF 첨부</Label><Input id="quoteFile" type="file" accept="application/pdf,.pdf" onChange={(event) => setPendingQuoteFile(event.target.files?.[0] ?? null)} /><div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">{pendingQuoteFile ? <span><Paperclip className="mr-1 inline size-3.5" />저장 예정: {pendingQuoteFile.name}</span> : quoteFileKey ? <a href={`/api/quote-files?key=${encodeURIComponent(quoteFileKey)}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-cyan-700 hover:underline"><ExternalLink className="size-3.5" />{quoteFileName || "첨부 견적서 열기"}</a> : <span>PDF 파일은 10MB 이하만 첨부할 수 있습니다.</span>}{(pendingQuoteFile || quoteFileKey) && <button type="button" onClick={() => { setPendingQuoteFile(null); setQuoteFileKey(""); setQuoteFileName(""); setQuoteFileSize(0); }} className="text-slate-500 underline">첨부 해제</button>}</div></div>
+                  <div className="space-y-2"><Label htmlFor="quotedLaborAmount">견적서상 노무비 합계</Label><Input id="quotedLaborAmount" type="number" min="0" step="10000" value={quotedLaborAmount} onChange={(event) => setQuotedLaborAmount(Number(event.target.value))} /><p className="text-xs text-slate-500">PDF에서 자동 입력되며 필요하면 직접 수정할 수 있습니다.</p>{quoteExtraction && <div className={`rounded-lg px-3 py-2 text-xs ${quoteExtraction.matches.length ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800"}`}>{quoteExtraction.matches.length ? `총 ${quoteExtraction.pageCount}페이지 중 직접비계 노무비 ${quoteExtraction.matches.length}건 발견 · ${quoteExtraction.matches.map((match) => `${match.page}페이지 ${formatWon(match.amount)}`).join(" + ")} = ${formatWon(quoteExtraction.total)}` : `총 ${quoteExtraction.pageCount}페이지에서 직접비계 노무비를 찾지 못했습니다.`}</div>}</div>
+                  <div className="space-y-2"><Label htmlFor="quoteFile">견적서 PDF 첨부</Label><Input id="quoteFile" type="file" accept="application/pdf,.pdf" disabled={extractingQuote} onChange={(event) => void handleQuoteFile(event.target.files?.[0] ?? null)} /><div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">{extractingQuote ? <span className="text-cyan-700">직접비계 노무비를 분석하고 있습니다...</span> : pendingQuoteFile ? <span><Paperclip className="mr-1 inline size-3.5" />저장 예정: {pendingQuoteFile.name}</span> : quoteFileKey ? <a href={`/api/quote-files?key=${encodeURIComponent(quoteFileKey)}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-cyan-700 hover:underline"><ExternalLink className="size-3.5" />{quoteFileName || "첨부 견적서 열기"}</a> : <span>PDF 파일은 10MB 이하만 첨부할 수 있습니다.</span>}{(pendingQuoteFile || quoteFileKey) && <button type="button" onClick={() => { setPendingQuoteFile(null); setQuoteFileKey(""); setQuoteFileName(""); setQuoteFileSize(0); setQuoteExtraction(null); }} className="text-slate-500 underline">첨부 해제</button>}</div></div>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                   <CostMetric label="견적서 노무비" value={quotedLaborAmount > 0 ? formatWon(quotedLaborAmount) : "미입력"} />
