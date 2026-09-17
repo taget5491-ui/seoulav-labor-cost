@@ -461,7 +461,7 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
   return (
     <div className="min-h-screen bg-[#f4f7fb] text-slate-900">
       <header className="no-print border-b border-slate-200 bg-[#0c2340] text-white shadow-sm">
-        <div className="mx-auto flex max-w-[1500px] items-center justify-between gap-4 px-5 py-4 lg:px-8">
+        <div className="mx-auto flex max-w-[1800px] items-center justify-between gap-4 px-5 py-4 lg:px-8">
           <div className="flex items-center gap-3">
             <div className="grid size-10 place-items-center rounded-xl bg-cyan-400 text-[#0c2340]"><Calculator className="size-5" /></div>
             <div><p className="text-lg font-semibold tracking-tight">노무비 산정</p><p className="text-xs text-slate-300">공무기술팀 견적 관리</p></div>
@@ -470,7 +470,7 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
         </div>
       </header>
 
-      <main className="mx-auto max-w-[1500px] px-4 py-6 lg:px-8">
+      <main className="mx-auto max-w-[1800px] px-4 py-6 lg:px-8">
         <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
           <div><p className="text-sm font-medium text-cyan-700">신규 산출</p><h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">공사 노무비 계산</h1></div>
           <div className="no-print flex flex-wrap gap-2">
@@ -484,8 +484,8 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
 
         <div className="print-only mb-6 hidden border-b border-slate-300 pb-4"><h1 className="text-2xl font-semibold">노무비 산출서</h1><p className="mt-1 text-sm text-slate-600">{workSite} · {projectName}</p></div>
 
-        <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
-          <fieldset disabled={isLocked} className="space-y-5 disabled:opacity-90">
+        <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_380px] xl:gap-8 2xl:grid-cols-[minmax(0,1fr)_400px] 2xl:gap-10">
+          <fieldset disabled={isLocked} className="min-w-0 space-y-5 disabled:opacity-90">
             {isLocked && <div className="no-print rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">확정 또는 종료된 견적은 잠금 상태입니다. 변경하려면 상단의 수정본 만들기를 선택하세요.</div>}
             <Card className="border-slate-200 shadow-sm">
               <CardHeader className="border-b border-slate-100"><CardTitle className="text-base">공사 정보</CardTitle></CardHeader>
@@ -586,7 +586,7 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
             </Card>
           </fieldset>
 
-          <aside className="space-y-5 xl:sticky xl:top-5">
+          <aside className="min-w-0 space-y-5 xl:sticky xl:top-5">
             <Card className="overflow-hidden border-0 bg-[#0c2340] text-white shadow-lg">
               <CardHeader className="border-b border-white/10"><div className="flex items-center justify-between"><CardTitle className="text-base text-white">산출 결과</CardTitle><span className="rounded-full bg-cyan-400/15 px-2.5 py-1 text-xs text-cyan-300">실시간 계산</span></div></CardHeader>
               <CardContent className="space-y-4 pt-5">
