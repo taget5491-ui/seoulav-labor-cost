@@ -268,7 +268,13 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
     setEndDate(extraction.endDate || endDate);
     const importPlan = planDailyReportImport(extraction.laborCandidates, actions);
     setRows((current) => {
-      const next = [...current];
+      const isInitialPlaceholder = current.length === 1 && !sourceGroupId
+        && current[0].contractorType === "self" && current[0].contractorQuoteAmount === 0
+        && current[0].description === "장비 설치 및 셋업";
+      const hasImportedLabor = importPlan.externalCandidates.length > 0 || importPlan.internalCandidates.length > 0;
+      const next = isInitialPlaceholder && hasImportedLabor ? [] : current.map((row) => isInitialPlaceholder && extraction.reportDate
+        ? { ...row, workDate: extraction.reportDate, dayType: dayTypeFromDate(extraction.reportDate), description: extraction.todayWork || row.description }
+        : row);
       for (const candidate of importPlan.externalCandidates) {
         const action = actions[candidate.id] ?? "exclude";
         const matchingIndex = next.findIndex((row) => row.workDate === candidate.workDate && row.contractorType === candidate.contractorType && row.contractorName === candidate.contractorName && row.description.trim() === candidate.description.trim());
@@ -282,6 +288,16 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
           contractorType: candidate.contractorType, contractorName: candidate.contractorName, contractorQuoteAmount: candidate.contractorQuoteAmount,
         });
       }
+      for (const candidate of importPlan.internalCandidates) {
+        const alreadyAdded = next.some((row) => row.workDate === candidate.workDate && row.contractorType === "self" && row.description.trim() === candidate.description.trim());
+        if (alreadyAdded) continue;
+        next.push({
+          id: crypto.randomUUID(), description: candidate.description, workSite: extraction.inferredSiteName || workSite,
+          workDate: candidate.workDate || extraction.reportDate, dayType: dayTypeFromDate(candidate.workDate || extraction.reportDate),
+          headcount: candidate.headcount, days: candidate.days, contractorType: "self", contractorName: "", contractorQuoteAmount: 0,
+        });
+      }
+      if (next.length === 0) next.push({ ...newRow(extraction.inferredSiteName || workSite), workDate: extraction.reportDate || today(), dayType: dayTypeFromDate(extraction.reportDate || today()), description: extraction.todayWork || "공사일보 작업" });
       return sortRowsByDate(next);
     });
     if (importPlan.internalWorkUnits > 0) {
