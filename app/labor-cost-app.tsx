@@ -25,6 +25,7 @@ import {
   DEFAULT_RATES,
   formatWon,
   INTERNAL_LABOR_RATE,
+  weekdayLabel,
   WORK_SITES,
   type DayType,
   type ContractorType,
@@ -98,6 +99,10 @@ function newRow(workSite = "DS기흥"): LaborRow {
     contractorName: "",
     contractorQuoteAmount: 0,
   };
+}
+
+function sortRowsByDate(rows: LaborRow[]) {
+  return [...rows].sort((a, b) => (a.workDate || "9999-12-31").localeCompare(b.workDate || "9999-12-31"));
 }
 
 export function LaborCostApp({ displayName }: { displayName: string }) {
@@ -240,7 +245,16 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
   }, []);
 
   function updateRow(id: string, patch: Partial<LaborRow>) {
-    setRows((current) => current.map((row) => (row.id === id ? { ...row, ...patch } : row)));
+    setRows((current) => sortRowsByDate(current.map((row) => {
+      if (row.id !== id) return row;
+      const next = { ...row, ...patch };
+      if (patch.workDate !== undefined && row.contractorType !== "self" && row.contractorQuoteAmount > 0) {
+        const oldSurcharge = row.dayType === "holiday" ? DEFAULT_RATES.holidaySurcharge : row.dayType === "saturday" ? DEFAULT_RATES.saturdaySurcharge : 0;
+        const newSurcharge = next.dayType === "holiday" ? DEFAULT_RATES.holidaySurcharge : next.dayType === "saturday" ? DEFAULT_RATES.saturdaySurcharge : 0;
+        next.contractorQuoteAmount = Math.max(0, row.contractorQuoteAmount + row.headcount * row.days * (newSurcharge - oldSurcharge));
+      }
+      return next;
+    })));
   }
 
   function applyDailyReport({ extraction, actions }: DailyReportImportResult) {
@@ -268,7 +282,7 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
           contractorType: candidate.contractorType, contractorName: candidate.contractorName, contractorQuoteAmount: candidate.contractorQuoteAmount,
         });
       }
-      return next;
+      return sortRowsByDate(next);
     });
     if (importPlan.internalWorkUnits > 0) {
       const existingUnits = internalHeadcount * internalDays;
@@ -332,11 +346,12 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
     setPendingQuoteFile(null);
     setExtractingQuote(false);
     setQuoteExtraction(null);
-    setRows(estimate.entries.map((entry) => ({
+    setRows(sortRowsByDate(estimate.entries.map((entry) => ({
       ...entry,
       workSite: savedWorkSite,
       id: crypto.randomUUID(),
-    })));
+      dayType: dayTypeFromDate(entry.workDate),
+    }))));
     setSourceGroupId(estimate.groupId);
     setAllowLockedRevision(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -581,7 +596,7 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
             <Card className="border-slate-200 shadow-sm">
               <CardHeader className="flex-row items-center justify-between gap-3 border-b border-slate-100">
                 <div><CardTitle className="text-base">투입 계획</CardTitle><p className="mt-1 text-sm text-slate-500">외부업체는 받은 견적금액을 입력하고, 자체 투입은 외부업체 비용에서 제외합니다.</p></div>
-                <div className="flex shrink-0 flex-wrap justify-end gap-2"><Button variant="outline" size="sm" onClick={() => setDailyReportOpen(true)}><FileInput /> 공사일보 PDF 불러오기</Button><Button variant="outline" size="sm" onClick={() => setRows((current) => [...current, newRow(workSite)])}><Plus /> 작업 추가</Button></div>
+                <div className="flex shrink-0 flex-wrap justify-end gap-2"><Button variant="outline" size="sm" onClick={() => setDailyReportOpen(true)}><FileInput /> 공사일보 PDF 불러오기</Button><Button variant="outline" size="sm" onClick={() => setRows((current) => sortRowsByDate([...current, newRow(workSite)]))}><Plus /> 작업 추가</Button></div>
               </CardHeader>
               <CardContent className="p-0">
                 <Table>
@@ -589,7 +604,7 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
                   <TableBody>
                     {result.rows.map((row) => (
                       <TableRow key={row.id}>
-                        <TableCell className="pl-5"><Input type="date" value={row.workDate} onChange={(event) => { const workDate = event.target.value; updateRow(row.id, { workDate, dayType: dayTypeFromDate(workDate) }); }} aria-label="투입일자" /></TableCell>
+                        <TableCell className="pl-5"><div className="flex items-center gap-2"><Input type="date" value={row.workDate} onChange={(event) => { const workDate = event.target.value; updateRow(row.id, { workDate, dayType: dayTypeFromDate(workDate) }); }} aria-label="투입일자" className={row.dayType === "holiday" ? "text-red-600" : row.dayType === "saturday" ? "text-blue-600" : ""} /><span className={`w-5 shrink-0 text-sm font-semibold ${row.dayType === "holiday" ? "text-red-600" : row.dayType === "saturday" ? "text-blue-600" : "text-slate-500"}`}>{weekdayLabel(row.workDate)}</span></div></TableCell>
                         <TableCell><Textarea value={row.description} onChange={(event) => updateRow(row.id, { description: event.target.value })} placeholder="작업내용을 상세히 입력하세요." aria-label="작업내용" className="min-h-16 min-w-[300px] resize-y" /></TableCell>
                         <TableCell>
                           <Select value={row.contractorType} onValueChange={(value) => {

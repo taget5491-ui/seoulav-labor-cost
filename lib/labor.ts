@@ -65,10 +65,96 @@ export const DAY_TYPE_LABELS: Record<DayType, string> = {
   holiday: "휴일",
 };
 
+const holidayCache = new Map<number, Set<string>>();
+const KNOWN_ELECTION_HOLIDAYS = new Set(["2025-06-03", "2026-06-03"]);
+const WEEKDAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"] as const;
+
+function isoDate(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function dateFromIso(value: string) {
+  return new Date(`${value}T12:00:00Z`);
+}
+
+function addDateDays(value: string, days: number) {
+  const date = dateFromIso(value);
+  date.setUTCDate(date.getUTCDate() + days);
+  return isoDate(date);
+}
+
+function koreanHolidaySet(year: number) {
+  const cached = holidayCache.get(year);
+  if (cached) return cached;
+
+  const holidays = new Set<string>();
+  const groups: Array<{ dates: string[]; substitute: "none" | "weekend" | "sunday_or_collision" }> = [];
+  for (const targetYear of [year - 1, year, year + 1]) {
+    const fixed: Array<[string, "none" | "weekend"]> = [
+      [`${targetYear}-01-01`, "none"], [`${targetYear}-03-01`, "weekend"], [`${targetYear}-05-05`, "weekend"],
+      [`${targetYear}-06-06`, "none"], [`${targetYear}-08-15`, "weekend"], [`${targetYear}-10-03`, "weekend"],
+      [`${targetYear}-10-09`, "weekend"], [`${targetYear}-12-25`, "weekend"],
+    ];
+    if (targetYear >= 2026) fixed.push([`${targetYear}-07-17`, "none"]);
+    fixed.forEach(([date, substitute]) => groups.push({ dates: [date], substitute }));
+  }
+
+  const lunarByYear = new Map<number, { seollal: string[]; buddha: string[]; chuseok: string[] }>();
+  const lunarFormatter = new Intl.DateTimeFormat("en-u-ca-chinese", { year: "numeric", month: "numeric", day: "numeric", timeZone: "Asia/Seoul" });
+  const scanStart = new Date(Date.UTC(year - 1, 10, 1, 12));
+  const scanEnd = new Date(Date.UTC(year + 1, 1, 1, 12));
+  for (let cursor = scanStart; cursor <= scanEnd; cursor = new Date(cursor.getTime() + 86_400_000)) {
+    const parts = lunarFormatter.format(cursor).match(/^(\d+)\/(\d+)\/(\d+)$/);
+    if (!parts) continue;
+    const lunarMonth = Number(parts[1]);
+    const lunarDay = Number(parts[2]);
+    const solarYear = cursor.getUTCFullYear();
+    const bucket = lunarByYear.get(solarYear) ?? { seollal: [], buddha: [], chuseok: [] };
+    if (lunarMonth === 1 && lunarDay === 1) bucket.seollal = [addDateDays(isoDate(cursor), -1), isoDate(cursor), addDateDays(isoDate(cursor), 1)];
+    if (lunarMonth === 4 && lunarDay === 8) bucket.buddha = [isoDate(cursor)];
+    if (lunarMonth === 8 && lunarDay === 15) bucket.chuseok = [addDateDays(isoDate(cursor), -1), isoDate(cursor), addDateDays(isoDate(cursor), 1)];
+    lunarByYear.set(solarYear, bucket);
+  }
+  for (const bucket of lunarByYear.values()) {
+    if (bucket.seollal.length) groups.push({ dates: bucket.seollal, substitute: "sunday_or_collision" });
+    if (bucket.buddha.length) groups.push({ dates: bucket.buddha, substitute: "weekend" });
+    if (bucket.chuseok.length) groups.push({ dates: bucket.chuseok, substitute: "sunday_or_collision" });
+  }
+
+  const occurrenceCount = new Map<string, number>();
+  groups.forEach((group) => group.dates.forEach((date) => occurrenceCount.set(date, (occurrenceCount.get(date) ?? 0) + 1)));
+  groups.forEach((group) => group.dates.forEach((date) => holidays.add(date)));
+  KNOWN_ELECTION_HOLIDAYS.forEach((date) => holidays.add(date));
+  for (const group of groups.filter((item) => item.substitute !== "none")) {
+    const overlapsHoliday = group.dates.some((date) => {
+      const day = dateFromIso(date).getUTCDay();
+      const weekendOverlap = group.substitute === "weekend" ? day === 0 || day === 6 : day === 0;
+      return weekendOverlap || (occurrenceCount.get(date) ?? 0) > 1;
+    });
+    if (!overlapsHoliday) continue;
+    let substitute = addDateDays(group.dates[group.dates.length - 1], 1);
+    while (holidays.has(substitute) || [0, 6].includes(dateFromIso(substitute).getUTCDay())) substitute = addDateDays(substitute, 1);
+    holidays.add(substitute);
+  }
+  const result = new Set([...holidays].filter((date) => date.startsWith(`${year}-`)));
+  holidayCache.set(year, result);
+  return result;
+}
+
+export function isKoreanPublicHoliday(date: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+  return koreanHolidaySet(Number(date.slice(0, 4))).has(date);
+}
+
+export function weekdayLabel(date: string) {
+  if (!date) return "";
+  return WEEKDAY_LABELS[dateFromIso(date).getUTCDay()];
+}
+
 export function dayTypeFromDate(date: string): DayType {
   if (!date) return "weekday";
-  const day = new Date(`${date}T12:00:00`).getDay();
-  if (day === 0) return "holiday";
+  const day = dateFromIso(date).getUTCDay();
+  if (day === 0 || isKoreanPublicHoliday(date)) return "holiday";
   if (day === 6) return "saturday";
   return "weekday";
 }
