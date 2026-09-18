@@ -517,7 +517,7 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
             <div><p className="text-lg font-semibold tracking-tight">노무비 산정</p><p className="text-xs text-slate-300">공무기술팀 견적 관리</p></div>
           </div>
           <div className="flex items-center gap-3">
-            <Button asChild variant="outline" className="border-white/25 bg-white/10 text-white hover:bg-white/20 hover:text-white"><Link href="/dashboard"><LayoutDashboard /> 통합 대시보드</Link></Button>
+            <Link href="/dashboard" className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-white/25 bg-white/10 px-4 text-sm font-medium text-white transition-colors hover:bg-white/20"><LayoutDashboard className="size-4" /> 통합 대시보드</Link>
             <div className="hidden text-right sm:block"><p className="text-sm">{displayName}</p><p className="text-xs text-slate-300">작성자</p></div>
           </div>
         </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, BarChart3, Building2, CalendarRange, Download, FileText, Printer, RotateCcw, Search, Users } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
@@ -32,24 +32,14 @@ const amountTick = (value: number) => value >= 100_000_000 ? `${(value / 100_000
 const escapeCell = (value: unknown) => String(value ?? "").replaceAll("\t", " ").replaceAll("\r", " ").replaceAll("\n", " ");
 const effectiveDate = (item: Estimate) => item.startDate || item.updatedAt.slice(0, 10);
 
-export function LaborDashboard({ displayName }: { displayName: string }) {
-  const [items, setItems] = useState<Estimate[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+export function LaborDashboard({ displayName, initialEstimates }: { displayName: string; initialEstimates: Estimate[] }) {
+  const items = initialEstimates;
   const [search, setSearch] = useState("");
   const [site, setSite] = useState(ALL);
   const [company, setCompany] = useState(ALL);
   const [status, setStatus] = useState(ALL);
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
-
-  useEffect(() => {
-    fetch("/api/estimates?limit=1000")
-      .then(async (response) => { if (!response.ok) throw new Error((await response.json()).error || "데이터를 불러오지 못했습니다."); return response.json(); })
-      .then((data) => setItems(data.estimates ?? []))
-      .catch((caught) => setError(caught instanceof Error ? caught.message : "데이터를 불러오지 못했습니다."))
-      .finally(() => setLoading(false));
-  }, []);
 
   const sites = useMemo(() => [...new Set(items.map((item) => item.siteName).filter(Boolean))].sort(), [items]);
   const companies = useMemo(() => [...new Set(items.flatMap((item) => [item.companyName, ...item.entries.filter((row) => row.contractorType !== "self").map((row) => row.contractorName)]).filter(Boolean))].sort(), [items]);
@@ -117,7 +107,7 @@ export function LaborDashboard({ displayName }: { displayName: string }) {
     <header className="no-print border-b border-slate-200 bg-[#0c2340] text-white shadow-sm">
       <div className="mx-auto flex max-w-[1800px] items-center justify-between gap-4 px-5 py-4 lg:px-8">
         <div className="flex items-center gap-3"><div className="grid size-10 place-items-center rounded-xl bg-cyan-400 text-[#0c2340]"><BarChart3 className="size-5" /></div><div><p className="text-lg font-semibold">통합 대시보드</p><p className="text-xs text-slate-300">노무비 현황 및 보고</p></div></div>
-        <div className="flex items-center gap-3"><Button asChild variant="outline" className="border-white/25 bg-white/10 text-white hover:bg-white/20 hover:text-white"><Link href="/"><ArrowLeft /> 산정 화면</Link></Button><div className="hidden text-right sm:block"><p className="text-sm">{displayName}</p><p className="text-xs text-slate-300">사용자</p></div></div>
+        <div className="flex items-center gap-3"><Link href="/" className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-white/25 bg-white/10 px-4 text-sm font-medium text-white transition-colors hover:bg-white/20"><ArrowLeft className="size-4" /> 산정 화면</Link><div className="hidden text-right sm:block"><p className="text-sm">{displayName}</p><p className="text-xs text-slate-300">사용자</p></div></div>
       </div>
     </header>
     <main className="mx-auto max-w-[1800px] px-4 py-6 lg:px-8">
@@ -131,7 +121,7 @@ export function LaborDashboard({ displayName }: { displayName: string }) {
         <div className="space-y-1.5"><Label>기간</Label><div className="flex gap-2"><Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} aria-label="시작일"/><Input type="date" value={to} onChange={(e) => setTo(e.target.value)} aria-label="종료일"/></div></div>
         <div className="flex items-end"><Button variant="outline" onClick={resetFilters}><RotateCcw /> 초기화</Button></div>
       </CardContent></Card>
-      {loading ? <div className="grid min-h-64 place-items-center text-slate-500">대시보드 데이터를 불러오는 중입니다…</div> : error ? <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-red-800">{error}</div> : <>
+      <>
         <section className="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
           {[
             { label: "프로젝트", value: `${filtered.length}건`, sub: `전체 ${items.filter((item) => !item.archivedAt).length}건`, icon: FileText, tone: "text-cyan-700 bg-cyan-50" },
@@ -150,7 +140,7 @@ export function LaborDashboard({ displayName }: { displayName: string }) {
           <Card className="border-slate-200 shadow-sm"><CardHeader><CardTitle className="text-base">진행 상태</CardTitle></CardHeader><CardContent className="space-y-4">{(Object.keys(STATUS_LABELS) as Status[]).map((key) => { const count = filtered.filter((item) => item.status === key).length; const ratio = filtered.length ? count / filtered.length * 100 : 0; return <div key={key}><div className="mb-1.5 flex justify-between text-sm"><span>{STATUS_LABELS[key]}</span><span className="font-medium">{count}건 · {ratio.toFixed(0)}%</span></div><div className="h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-cyan-600" style={{ width: `${ratio}%` }}/></div></div>; })}</CardContent></Card>
         </section>
         <Card className="border-slate-200 shadow-sm"><CardHeader className="flex-row items-center justify-between"><CardTitle className="text-base">프로젝트 상세</CardTitle><span className="text-sm text-slate-500">{filtered.length}건</span></CardHeader><CardContent className="overflow-x-auto p-0"><Table><TableHeader><TableRow><TableHead>기준일</TableHead><TableHead>프로젝트</TableHead><TableHead>사업장</TableHead><TableHead>업체</TableHead><TableHead>상태</TableHead><TableHead className="text-right">투입 인원</TableHead><TableHead className="text-right">견적 노무비</TableHead><TableHead className="text-right">실제 노무비</TableHead><TableHead className="text-right">차이</TableHead></TableRow></TableHeader><TableBody>{filtered.map((item) => { const count = item.entries.reduce((sum, row) => sum + Number(row.headcount || 0), 0); const difference = Number(item.totalAmount || 0) - Number(item.quotedLaborAmount || 0); return <TableRow key={item.id}><TableCell className="whitespace-nowrap">{effectiveDate(item) || "-"}</TableCell><TableCell className="max-w-72 font-medium">{item.projectName}</TableCell><TableCell>{item.siteName || "-"}</TableCell><TableCell>{item.companyName || item.entries.find((row) => row.contractorType !== "self")?.contractorName || "-"}</TableCell><TableCell><span className={`whitespace-nowrap rounded-full px-2 py-1 text-xs ${STATUS_STYLES[item.status]}`}>{STATUS_LABELS[item.status]}</span></TableCell><TableCell className="text-right">{count.toLocaleString("ko-KR")}명</TableCell><TableCell className="text-right">{formatWon(item.quotedLaborAmount)}</TableCell><TableCell className="text-right font-medium">{formatWon(item.totalAmount)}</TableCell><TableCell className={`text-right ${difference > 0 ? "text-red-600" : "text-emerald-700"}`}>{difference > 0 ? "+" : ""}{formatWon(difference)}</TableCell></TableRow>; })}{!filtered.length && <TableRow><TableCell colSpan={9} className="h-32 text-center text-slate-500">조건에 맞는 프로젝트가 없습니다.</TableCell></TableRow>}</TableBody></Table></CardContent></Card>
-      </>}
+      </>
     </main>
   </div>;
 }
