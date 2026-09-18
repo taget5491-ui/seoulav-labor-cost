@@ -1,5 +1,5 @@
 import { dayTypeFromDate, type ContractorType } from "./labor.ts";
-import type { DailyReportExtraction, DailyReportLaborCandidate, PositionedPdfText } from "../types/daily-report.ts";
+import type { DailyReportCandidateAction, DailyReportExtraction, DailyReportLaborCandidate, PositionedPdfText } from "../types/daily-report.ts";
 
 type TextLine = { y: number; items: PositionedPdfText[]; text: string };
 
@@ -161,4 +161,16 @@ export async function extractDailyReport(file: File): Promise<DailyReportExtract
 
 export function candidateDayType(candidate: DailyReportLaborCandidate) {
   return dayTypeFromDate(candidate.workDate);
+}
+
+export function planDailyReportImport(
+  candidates: DailyReportLaborCandidate[],
+  actions: Record<string, DailyReportCandidateAction>,
+) {
+  const selected = candidates.filter((candidate) => candidate.shift === "day" && actions[candidate.id] !== "exclude");
+  return {
+    externalCandidates: selected.filter((candidate) => candidate.contractorType !== "self"),
+    internalCandidates: selected.filter((candidate) => candidate.contractorType === "self"),
+    internalWorkUnits: selected.filter((candidate) => candidate.contractorType === "self").reduce((sum, candidate) => sum + candidate.headcount * candidate.days, 0),
+  };
 }

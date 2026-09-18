@@ -102,12 +102,12 @@ export function DailyReportImportDialog({ open, onOpenChange, existingRows, onAp
             <Table>
               <TableHeader><TableRow className="bg-slate-50"><TableHead>적용 방식</TableHead><TableHead>구분</TableHead><TableHead>업체</TableHead><TableHead>투입구분</TableHead><TableHead>인원</TableHead><TableHead>확인</TableHead></TableRow></TableHeader>
               <TableBody>{extraction.laborCandidates.map((candidate) => <TableRow key={candidate.id}>
-                <TableCell><Select value={actions[candidate.id] ?? "exclude"} onValueChange={(value) => setActions((current) => ({ ...current, [candidate.id]: value as DailyReportCandidateAction }))} disabled={candidate.shift === "night"}><SelectTrigger className="w-36"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="add">새 행 추가</SelectItem><SelectItem value="merge">기존 행과 병합</SelectItem><SelectItem value="exclude">제외</SelectItem></SelectContent></Select></TableCell>
+                <TableCell>{candidate.contractorType === "self" && candidate.shift === "day" ? <span className="inline-flex min-h-9 items-center rounded-md bg-cyan-50 px-3 text-sm font-medium text-cyan-800">공무기술팀 반영</span> : <Select value={actions[candidate.id] ?? "exclude"} onValueChange={(value) => setActions((current) => ({ ...current, [candidate.id]: value as DailyReportCandidateAction }))} disabled={candidate.shift === "night"}><SelectTrigger className="w-36"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="add">새 행 추가</SelectItem><SelectItem value="merge">기존 행과 병합</SelectItem><SelectItem value="exclude">제외</SelectItem></SelectContent></Select>}</TableCell>
                 <TableCell>{candidate.shift === "day" ? "주간" : "야간"}</TableCell>
                 <TableCell>{candidate.sourceCompanyName}</TableCell>
                 <TableCell>{CONTRACTOR_TYPE_LABELS[candidate.contractorType]}</TableCell>
                 <TableCell>{candidate.headcount}명</TableCell>
-                <TableCell className="text-xs">{candidate.shift === "night" ? <span className="text-amber-700">수동 확인 필요</span> : duplicateIds.has(candidate.id) ? <span className="text-amber-700">동일 행 있음</span> : <span className="text-emerald-700">적용 가능</span>}</TableCell>
+                <TableCell className="text-xs">{candidate.shift === "night" ? <span className="text-amber-700">수동 확인 필요</span> : candidate.contractorType === "self" ? <span className="text-cyan-700">노무비 자동 계산</span> : duplicateIds.has(candidate.id) ? <span className="text-amber-700">동일 행 있음</span> : <span className="text-emerald-700">적용 가능</span>}</TableCell>
               </TableRow>)}</TableBody>
             </Table>
           </div>

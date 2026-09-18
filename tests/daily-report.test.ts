@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { normalizeCompany, parseDailyReport } from "../lib/daily-report.ts";
+import { normalizeCompany, parseDailyReport, planDailyReportImport } from "../lib/daily-report.ts";
 import type { PositionedPdfText } from "../types/daily-report.ts";
 
 function line(y: number, entries: Array<[number, string]>): PositionedPdfText[] {
@@ -39,4 +39,8 @@ test("parses project, dates, work and daytime labor candidates", () => {
     { contractorType: "self", headcount: 3 },
     { contractorType: "rta", headcount: 3 },
   ]);
+  const plan = planDailyReportImport(result.laborCandidates, Object.fromEntries(result.laborCandidates.map((candidate) => [candidate.id, "add"])));
+  assert.equal(plan.internalWorkUnits, 3);
+  assert.deepEqual(plan.internalCandidates.map((candidate) => candidate.sourceCompanyName), ["서울영상테크"]);
+  assert.deepEqual(plan.externalCandidates.map((candidate) => candidate.sourceCompanyName), ["RTA"]);
 });

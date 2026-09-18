@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { extractDirectCostLabor, type LaborExtractionResult } from "@/lib/pdf-labor";
-import { candidateDayType } from "@/lib/daily-report";
+import { candidateDayType, planDailyReportImport } from "@/lib/daily-report";
 import {
   calculateEstimate,
   CONTRACTOR_TYPE_LABELS,
@@ -251,11 +251,11 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
     setWorkSite(extraction.inferredSiteName || workSite);
     setStartDate(extraction.startDate || startDate);
     setEndDate(extraction.endDate || endDate);
+    const importPlan = planDailyReportImport(extraction.laborCandidates, actions);
     setRows((current) => {
       const next = [...current];
-      for (const candidate of extraction.laborCandidates) {
+      for (const candidate of importPlan.externalCandidates) {
         const action = actions[candidate.id] ?? "exclude";
-        if (action === "exclude" || candidate.shift === "night") continue;
         const matchingIndex = next.findIndex((row) => row.workDate === candidate.workDate && row.contractorType === candidate.contractorType && row.contractorName === candidate.contractorName && row.description.trim() === candidate.description.trim());
         if (action === "merge" && matchingIndex >= 0) {
           next[matchingIndex] = { ...next[matchingIndex], headcount: next[matchingIndex].headcount + candidate.headcount };
@@ -269,8 +269,22 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
       }
       return next;
     });
+    if (importPlan.internalWorkUnits > 0) {
+      const existingUnits = internalHeadcount * internalDays;
+      const firstInternal = importPlan.internalCandidates[0];
+      if (existingUnits === 0 && importPlan.internalCandidates.length === 1) {
+        setInternalHeadcount(firstInternal.headcount);
+        setInternalDays(firstInternal.days);
+      } else if (importPlan.internalCandidates.length === 1 && internalHeadcount === firstInternal.headcount) {
+        setInternalDays((current) => current + firstInternal.days);
+      } else {
+        setInternalHeadcount(1);
+        setInternalDays(existingUnits + importPlan.internalWorkUnits);
+      }
+    }
     setDailyReportOpen(false);
-    toast.success("검토한 공사일보 항목을 투입 계획에 적용했습니다. 아직 저장되지는 않았습니다.");
+    const internalMessage = importPlan.internalWorkUnits > 0 ? ` 서울영상테크 ${importPlan.internalWorkUnits.toLocaleString("ko-KR")}인일은 공무기술팀 노무비에 포함했습니다.` : "";
+    toast.success(`검토한 공사일보 항목을 투입 계획에 적용했습니다.${internalMessage} 아직 저장되지는 않았습니다.`);
   }
 
   function resetForm() {
@@ -603,7 +617,7 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
             <Card className="border-cyan-200 bg-cyan-50/40 shadow-sm">
               <CardHeader className="border-b border-cyan-100">
                 <CardTitle className="text-base">공무기술팀 노무비</CardTitle>
-                <p className="text-sm text-slate-500">자사 투입 인력은 일반관리비·공구손료·요일 가산 없이 1인 1일 300,000원으로 계산합니다.</p>
+                <p className="text-sm text-slate-500">서울영상테크 인원은 공사일보에서 자동 반영되며, 일반관리비·공구손료·요일 가산 없이 1인 1일 300,000원으로 계산합니다.</p>
               </CardHeader>
               <CardContent className="grid items-end gap-4 pt-5 sm:grid-cols-[1fr_1fr_1.3fr]">
                 <div className="space-y-2"><Label htmlFor="internalHeadcount">투입 인원</Label><Input id="internalHeadcount" type="number" min="0" max="100" value={internalHeadcount} onChange={(event) => setInternalHeadcount(Number(event.target.value))} /></div>
