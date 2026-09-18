@@ -1,7 +1,7 @@
 "use client";
+/* eslint-disable @next/next/no-html-link-for-pages */
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import { ArrowLeft, BarChart3, Building2, CalendarRange, Download, FileText, Printer, RotateCcw, Search, Users } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 import { toast } from "sonner";
@@ -107,7 +107,7 @@ export function LaborDashboard({ displayName, initialEstimates }: { displayName:
     <header className="no-print border-b border-slate-200 bg-[#0c2340] text-white shadow-sm">
       <div className="mx-auto flex max-w-[1800px] items-center justify-between gap-4 px-5 py-4 lg:px-8">
         <div className="flex items-center gap-3"><div className="grid size-10 place-items-center rounded-xl bg-cyan-400 text-[#0c2340]"><BarChart3 className="size-5" /></div><div><p className="text-lg font-semibold">통합 대시보드</p><p className="text-xs text-slate-300">노무비 현황 및 보고</p></div></div>
-        <div className="flex items-center gap-3"><Link href="/" className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-white/25 bg-white/10 px-4 text-sm font-medium text-white transition-colors hover:bg-white/20"><ArrowLeft className="size-4" /> 산정 화면</Link><div className="hidden text-right sm:block"><p className="text-sm">{displayName}</p><p className="text-xs text-slate-300">사용자</p></div></div>
+        <div className="flex items-center gap-3"><a href="/" className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-white/25 bg-white/10 px-4 text-sm font-medium text-white transition-colors hover:bg-white/20"><ArrowLeft className="size-4" /> 산정 화면</a><div className="hidden text-right sm:block"><p className="text-sm">{displayName}</p><p className="text-xs text-slate-300">사용자</p></div></div>
       </div>
     </header>
     <main className="mx-auto max-w-[1800px] px-4 py-6 lg:px-8">
