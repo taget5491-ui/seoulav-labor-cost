@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Archive, Calculator, CalendarDays, Download, ExternalLink, FileClock, FileInput, FileText, History, Lock, Paperclip, Plus, Printer, RotateCcw, Save, Search, Trash2, Users } from "lucide-react";
+import Link from "next/link";
+import { Archive, Calculator, CalendarDays, Download, ExternalLink, FileClock, FileInput, FileText, History, LayoutDashboard, Lock, Paperclip, Plus, Printer, RotateCcw, Save, Search, Trash2, Users } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -515,7 +516,10 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
             <div className="grid size-10 place-items-center rounded-xl bg-cyan-400 text-[#0c2340]"><Calculator className="size-5" /></div>
             <div><p className="text-lg font-semibold tracking-tight">노무비 산정</p><p className="text-xs text-slate-300">공무기술팀 견적 관리</p></div>
           </div>
-          <div className="hidden text-right sm:block"><p className="text-sm">{displayName}</p><p className="text-xs text-slate-300">작성자</p></div>
+          <div className="flex items-center gap-3">
+            <Button asChild variant="outline" className="border-white/25 bg-white/10 text-white hover:bg-white/20 hover:text-white"><Link href="/dashboard"><LayoutDashboard /> 통합 대시보드</Link></Button>
+            <div className="hidden text-right sm:block"><p className="text-sm">{displayName}</p><p className="text-xs text-slate-300">작성자</p></div>
+          </div>
         </div>
       </header>
 

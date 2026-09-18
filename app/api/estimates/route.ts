@@ -100,7 +100,8 @@ export async function GET(request: Request) {
   if (!user) return Response.json({ error: "로그인이 필요합니다." }, { status: 401 });
   try {
     const db = getD1();
-    const id = new URL(request.url).searchParams.get("id");
+    const url = new URL(request.url);
+    const id = url.searchParams.get("id");
     if (id) {
       const item = await db.prepare("SELECT * FROM estimates WHERE id = ?").bind(id).first<DbRow>();
       if (!item) return Response.json({ error: "견적을 찾을 수 없습니다." }, { status: 404 });
@@ -108,11 +109,13 @@ export async function GET(request: Request) {
       return Response.json({ estimate: mapEstimate(item, entries.results) });
     }
 
+    const requestedLimit = Number(url.searchParams.get("limit") ?? 100);
+    const limit = Number.isFinite(requestedLimit) ? Math.min(1000, Math.max(1, Math.trunc(requestedLimit))) : 100;
     const estimatesResult = await db.prepare(
       `SELECT e.* FROM estimates e
        WHERE e.version = (SELECT MAX(e2.version) FROM estimates e2 WHERE e2.group_id = e.group_id)
-       ORDER BY e.updated_at DESC LIMIT 100`,
-    ).all<DbRow>();
+       ORDER BY e.updated_at DESC LIMIT ?`,
+    ).bind(limit).all<DbRow>();
     const entriesResult = await db.prepare(
       `SELECT le.* FROM labor_entries le INNER JOIN estimates e ON e.id = le.estimate_id
        WHERE e.version = (SELECT MAX(e2.version) FROM estimates e2 WHERE e2.group_id = e.group_id)
