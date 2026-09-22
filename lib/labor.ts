@@ -12,6 +12,8 @@ export type LaborRow = {
   contractorType: ContractorType;
   contractorName: string;
   contractorQuoteAmount: number;
+  applyOverhead: boolean;
+  additionalCost: number;
 };
 
 export type LaborRates = {
@@ -163,18 +165,17 @@ export function calculateRow(row: LaborRow, rates = DEFAULT_RATES) {
   const headcount = Math.max(0, Number(row.headcount) || 0);
   const days = Math.max(0, Number(row.days) || 0);
   const units = headcount * days;
-  const baseAmount = Math.round(units * rates.baseRate);
-  const adminAmount = Math.round(baseAmount * (rates.adminRate / 100));
-  const toolAmount = Math.round(baseAmount * (rates.toolRate / 100));
+  const contractorQuoteAmount = Math.max(0, Math.round(Number(row.contractorQuoteAmount) || 0));
+  const baseAmount = row.contractorType === "self" ? Math.round(units * rates.baseRate) : contractorQuoteAmount;
+  const adminAmount = row.applyOverhead ? Math.round(baseAmount * (rates.adminRate / 100)) : 0;
+  const toolAmount = row.applyOverhead ? Math.round(baseAmount * (rates.toolRate / 100)) : 0;
   const daySurcharge = row.dayType === "holiday"
     ? rates.holidaySurcharge
     : row.dayType === "saturday"
       ? rates.saturdaySurcharge
       : 0;
   const surchargeAmount = Math.round(units * daySurcharge);
-  const contractorQuoteAmount = row.contractorType === "self"
-    ? 0
-    : Math.max(0, Math.round(Number(row.contractorQuoteAmount) || 0));
+  const additionalCost = Math.max(0, Math.round(Number(row.additionalCost) || 0));
 
   return {
     units,
@@ -183,7 +184,8 @@ export function calculateRow(row: LaborRow, rates = DEFAULT_RATES) {
     adminAmount,
     toolAmount,
     surchargeAmount,
-    totalAmount: baseAmount + adminAmount + toolAmount + surchargeAmount,
+    additionalCost,
+    totalAmount: baseAmount + adminAmount + toolAmount + surchargeAmount + additionalCost,
     contractorQuoteAmount,
   };
 }
@@ -208,17 +210,18 @@ export function calculateEstimate(
     { units: 0, baseAmount: 0, adminAmount: 0, toolAmount: 0, surchargeAmount: 0, totalAmount: 0 },
   );
   const safeExtraCosts = Math.max(0, Math.round(Number(extraCosts) || 0));
-  const safeInternalHeadcount = Math.max(0, Math.floor(Number(internalHeadcount) || 0));
-  const safeInternalDays = Math.max(0, Number(internalDays) || 0);
-  const internalWorkUnits = safeInternalHeadcount * safeInternalDays;
-  const internalLaborAmount = Math.round(internalWorkUnits * INTERNAL_LABOR_RATE);
-  const externalContractorAmount = calculatedRows.reduce((sum, row) => sum + row.contractorQuoteAmount, 0);
+  const legacyInternalUnits = Math.max(0, Math.floor(Number(internalHeadcount) || 0)) * Math.max(0, Number(internalDays) || 0);
+  const internalRows = calculatedRows.filter((row) => row.contractorType === "self");
+  const externalRows = calculatedRows.filter((row) => row.contractorType !== "self");
+  const internalWorkUnits = internalRows.reduce((sum, row) => sum + row.units, 0) || legacyInternalUnits;
+  const internalLaborAmount = internalRows.length ? internalRows.reduce((sum, row) => sum + row.totalAmount, 0) : Math.round(legacyInternalUnits * INTERNAL_LABOR_RATE);
+  const externalContractorAmount = externalRows.reduce((sum, row) => sum + row.totalAmount, 0);
   return {
     rows: calculatedRows,
     ...totals,
     extraCosts: safeExtraCosts,
-    internalHeadcount: safeInternalHeadcount,
-    internalDays: safeInternalDays,
+    internalHeadcount: internalRows.reduce((sum, row) => sum + row.headcount, 0),
+    internalDays: internalRows.reduce((sum, row) => sum + row.days, 0),
     internalWorkUnits,
     internalLaborAmount,
     externalContractorAmount,

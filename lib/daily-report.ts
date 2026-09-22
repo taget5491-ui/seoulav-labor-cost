@@ -1,4 +1,4 @@
-import { calculateRow, dayTypeFromDate, DEFAULT_RATES, type ContractorType } from "./labor.ts";
+import { dayTypeFromDate, DEFAULT_RATES, type ContractorType } from "./labor.ts";
 import type { DailyReportCandidateAction, DailyReportExtraction, DailyReportLaborCandidate, PositionedPdfText } from "../types/daily-report.ts";
 
 type TextLine = { y: number; items: PositionedPdfText[]; text: string };
@@ -76,18 +76,7 @@ function extractLaborCandidates(lines: TextLine[], pageWidth: number, reportDate
       }, null);
       if (!count?.value) continue;
       const normalized = normalizeCompany(company.text);
-      const contractorQuoteAmount = normalized.contractorType === "self" ? 0 : calculateRow({
-        id: "daily-report-preview",
-        description,
-        workSite: "",
-        workDate: reportDate,
-        dayType: dayTypeFromDate(reportDate),
-        headcount: count.value,
-        days: 1,
-        contractorType: normalized.contractorType,
-        contractorName: normalized.contractorName,
-        contractorQuoteAmount: 0,
-      }, DEFAULT_RATES).totalAmount;
+      const contractorQuoteAmount = normalized.contractorType === "self" ? 0 : count.value * DEFAULT_RATES.baseRate;
       candidates.push({
         id: `${shift}-${company.x}-${company.y}`,
         workDate: reportDate,
@@ -183,18 +172,7 @@ export function planDailyReportImport(
   return {
     externalCandidates: selected.filter((candidate) => candidate.contractorType !== "self").map((candidate) => ({
       ...candidate,
-      contractorQuoteAmount: calculateRow({
-        id: candidate.id,
-        description: candidate.description,
-        workSite: "",
-        workDate: candidate.workDate,
-        dayType: dayTypeFromDate(candidate.workDate),
-        headcount: candidate.headcount,
-        days: candidate.days,
-        contractorType: candidate.contractorType,
-        contractorName: candidate.contractorName,
-        contractorQuoteAmount: 0,
-      }, DEFAULT_RATES).totalAmount,
+      contractorQuoteAmount: candidate.headcount * candidate.days * DEFAULT_RATES.baseRate,
     })),
     internalCandidates: selected.filter((candidate) => candidate.contractorType === "self"),
     internalWorkUnits: selected.filter((candidate) => candidate.contractorType === "self").reduce((sum, candidate) => sum + candidate.headcount * candidate.days, 0),

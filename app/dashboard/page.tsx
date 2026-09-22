@@ -36,6 +36,7 @@ export default async function DashboardPage() {
       contractorType: (entry.contractor_type === "legacy" ? "direct" : String(entry.contractor_type)) as "self" | "rta" | "vsent" | "coreworker" | "direct",
       contractorName: entry.contractor_type === "legacy" ? "기존 산정" : String(entry.contractor_name ?? ""),
       contractorQuoteAmount: Number(entry.contractor_type === "legacy" ? entry.total_amount : entry.contractor_quote_amount ?? 0),
+      applyOverhead: Boolean(entry.apply_overhead), additionalCost: Number(entry.additional_cost ?? 0),
     })),
   }));
   return <LaborDashboard displayName={user.displayName} initialEstimates={initialEstimates} />;

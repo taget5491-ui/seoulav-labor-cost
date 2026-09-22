@@ -52,6 +52,8 @@ export const laborEntries = sqliteTable(
     contractorType: text("contractor_type").notNull().default("legacy"),
     contractorName: text("contractor_name").notNull().default(""),
     contractorQuoteAmount: integer("contractor_quote_amount").notNull().default(0),
+    applyOverhead: integer("apply_overhead", { mode: "boolean" }).notNull().default(false),
+    additionalCost: integer("additional_cost").notNull().default(0),
     baseRate: integer("base_rate").notNull(),
     adminRate: real("admin_rate").notNull(),
     toolRate: real("tool_rate").notNull(),

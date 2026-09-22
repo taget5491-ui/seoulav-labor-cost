@@ -36,6 +36,13 @@
       "when": 1789606692606,
       "tag": "0004_parched_guardian",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1790067540061,
+      "tag": "0005_far_golden_guardian",
+      "breakpoints": true
     }
   ]
 }

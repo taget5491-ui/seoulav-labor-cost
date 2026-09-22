@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { formatWon, type LaborRow } from "@/lib/labor";
+import { calculateRow, formatWon, type LaborRow } from "@/lib/labor";
 
 type Status = "draft" | "review" | "confirmed" | "closed";
 type Estimate = {
@@ -70,7 +70,7 @@ export function LaborDashboard({ displayName, initialEstimates }: { displayName:
     filtered.forEach((item) => {
       item.entries.filter((row) => row.contractorType !== "self").forEach((row) => {
         const name = row.contractorName || item.companyName || "업체 미지정";
-        map.set(name, (map.get(name) ?? 0) + Number(row.contractorQuoteAmount || 0));
+        map.set(name, (map.get(name) ?? 0) + calculateRow(row).totalAmount);
       });
     });
     return [...map].map(([name, total]) => ({ name, total })).sort((a, b) => b.total - a.total).slice(0, 10);

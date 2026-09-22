@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { DailyReportImportDialog, type DailyReportImportResult } from "@/components/daily-report-import-dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -46,8 +47,6 @@ type SavedEstimate = {
   archivedAt: string | null;
   notes: string;
   extraCosts: number;
-  internalHeadcount: number;
-  internalDays: number;
   internalLaborAmount: number;
   quotedLaborAmount: number;
   quoteFileKey: string;
@@ -98,6 +97,8 @@ function newRow(workSite = "DS기흥"): LaborRow {
     contractorType: "self",
     contractorName: "",
     contractorQuoteAmount: 0,
+    applyOverhead: false,
+    additionalCost: 0,
   };
 }
 
@@ -115,8 +116,6 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
   const [status, setStatus] = useState<EstimateStatus>("draft");
   const [notes, setNotes] = useState("");
   const [extraCosts, setExtraCosts] = useState(0);
-  const [internalHeadcount, setInternalHeadcount] = useState(0);
-  const [internalDays, setInternalDays] = useState(0);
   const [quotedLaborAmount, setQuotedLaborAmount] = useState(0);
   const [quoteFileKey, setQuoteFileKey] = useState("");
   const [quoteFileName, setQuoteFileName] = useState("");
@@ -137,8 +136,8 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
   const [dailyReportOpen, setDailyReportOpen] = useState(false);
 
   const result = useMemo(
-    () => calculateEstimate(rows, extraCosts, DEFAULT_RATES, internalHeadcount, internalDays),
-    [rows, extraCosts, internalHeadcount, internalDays],
+    () => calculateEstimate(rows, extraCosts, DEFAULT_RATES),
+    [rows, extraCosts],
   );
 
   const isLocked = Boolean(sourceGroupId && ["confirmed", "closed"].includes(status) && !allowLockedRevision);
@@ -205,13 +204,13 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
                   contractorType: { enum: ["self", "rta", "vsent", "coreworker", "direct"] },
                   contractorName: { type: "string" },
                   contractorQuoteAmount: { type: "number", minimum: 0 },
+                  applyOverhead: { type: "boolean" },
+                  additionalCost: { type: "number", minimum: 0 },
                 },
                 required: ["description", "workSite", "workDate", "dayType", "headcount", "days", "contractorType", "contractorName", "contractorQuoteAmount"],
               },
             },
             extraCosts: { type: "number", minimum: 0 },
-            internalHeadcount: { type: "number", minimum: 0 },
-            internalDays: { type: "number", minimum: 0 },
           },
           required: ["rows"],
           additionalProperties: false,
@@ -221,16 +220,12 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
           const value = input as {
             rows: Omit<LaborRow, "id">[];
             extraCosts?: number;
-            internalHeadcount?: number;
-            internalDays?: number;
           };
           const toolRows = value.rows.map((row) => ({ ...row, id: crypto.randomUUID() }));
           const calculation = calculateEstimate(
             toolRows,
             value.extraCosts ?? 0,
             DEFAULT_RATES,
-            value.internalHeadcount ?? 0,
-            value.internalDays ?? 0,
           );
           return {
             totalAmount: calculation.grandTotal,
@@ -245,16 +240,7 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
   }, []);
 
   function updateRow(id: string, patch: Partial<LaborRow>) {
-    setRows((current) => sortRowsByDate(current.map((row) => {
-      if (row.id !== id) return row;
-      const next = { ...row, ...patch };
-      if (patch.workDate !== undefined && row.contractorType !== "self" && row.contractorQuoteAmount > 0) {
-        const oldSurcharge = row.dayType === "holiday" ? DEFAULT_RATES.holidaySurcharge : row.dayType === "saturday" ? DEFAULT_RATES.saturdaySurcharge : 0;
-        const newSurcharge = next.dayType === "holiday" ? DEFAULT_RATES.holidaySurcharge : next.dayType === "saturday" ? DEFAULT_RATES.saturdaySurcharge : 0;
-        next.contractorQuoteAmount = Math.max(0, row.contractorQuoteAmount + row.headcount * row.days * (newSurcharge - oldSurcharge));
-      }
-      return next;
-    })));
+    setRows((current) => sortRowsByDate(current.map((row) => row.id === id ? { ...row, ...patch } : row)));
   }
 
   function applyDailyReport({ extraction, actions }: DailyReportImportResult) {
@@ -286,6 +272,7 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
           id: crypto.randomUUID(), description: candidate.description, workSite: extraction.inferredSiteName || workSite,
           workDate: candidate.workDate, dayType: candidateDayType(candidate), headcount: candidate.headcount, days: candidate.days,
           contractorType: candidate.contractorType, contractorName: candidate.contractorName, contractorQuoteAmount: candidate.contractorQuoteAmount,
+          applyOverhead: true, additionalCost: 0,
         });
       }
       for (const candidate of importPlan.internalCandidates) {
@@ -295,24 +282,12 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
           id: crypto.randomUUID(), description: candidate.description, workSite: extraction.inferredSiteName || workSite,
           workDate: candidate.workDate || extraction.reportDate, dayType: dayTypeFromDate(candidate.workDate || extraction.reportDate),
           headcount: candidate.headcount, days: candidate.days, contractorType: "self", contractorName: "", contractorQuoteAmount: 0,
+          applyOverhead: false, additionalCost: 0,
         });
       }
       if (next.length === 0) next.push({ ...newRow(extraction.inferredSiteName || workSite), workDate: extraction.reportDate || today(), dayType: dayTypeFromDate(extraction.reportDate || today()), description: extraction.todayWork || "공사일보 작업" });
       return sortRowsByDate(next);
     });
-    if (importPlan.internalWorkUnits > 0) {
-      const existingUnits = internalHeadcount * internalDays;
-      const firstInternal = importPlan.internalCandidates[0];
-      if (existingUnits === 0 && importPlan.internalCandidates.length === 1) {
-        setInternalHeadcount(firstInternal.headcount);
-        setInternalDays(firstInternal.days);
-      } else if (importPlan.internalCandidates.length === 1 && internalHeadcount === firstInternal.headcount) {
-        setInternalDays((current) => current + firstInternal.days);
-      } else {
-        setInternalHeadcount(1);
-        setInternalDays(existingUnits + importPlan.internalWorkUnits);
-      }
-    }
     setDailyReportOpen(false);
     const internalMessage = importPlan.internalWorkUnits > 0 ? ` 서울영상테크 ${importPlan.internalWorkUnits.toLocaleString("ko-KR")}인일은 공무기술팀 노무비에 포함했습니다.` : "";
     toast.success(`검토한 공사일보 항목을 투입 계획에 적용했습니다.${internalMessage} 아직 저장되지는 않았습니다.`);
@@ -328,8 +303,6 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
     setStatus("draft");
     setNotes("");
     setExtraCosts(0);
-    setInternalHeadcount(0);
-    setInternalDays(0);
     setQuotedLaborAmount(0);
     setQuoteFileKey("");
     setQuoteFileName("");
@@ -353,8 +326,6 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
     setStatus(estimate.status || "draft");
     setNotes(estimate.notes);
     setExtraCosts(estimate.extraCosts);
-    setInternalHeadcount(estimate.internalHeadcount ?? 0);
-    setInternalDays(estimate.internalDays ?? 0);
     setQuotedLaborAmount(estimate.quotedLaborAmount ?? 0);
     setQuoteFileKey(estimate.quoteFileKey || "");
     setQuoteFileName(estimate.quoteFileName || "");
@@ -475,8 +446,8 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
           status,
           notes,
           extraCosts,
-          internalHeadcount,
-          internalDays,
+          internalHeadcount: 0,
+          internalDays: 0,
           quotedLaborAmount,
           quoteFileKey: savedQuoteFile.key,
           quoteFileName: savedQuoteFile.name,
@@ -512,15 +483,13 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
       ["노무비 집행률", quotedLaborAmount > 0 ? `${executionRate.toFixed(1)}%` : "미입력"],
       ["잔여 노무비", quotedLaborAmount > 0 ? remainingLaborAmount : "미입력"],
       [],
-      ["투입일자", "작업내용", "투입구분", "업체명", "업체 견적금액", "근무구분", "인원", "일수"],
+      ["투입일자", "작업내용", "투입구분", "업체명", "기본 노무비", "관리비·공구손료", "추가 비용", "근무구분", "인원", "일수", "계산 노무비"],
       ...result.rows.map((row) => [
         row.workDate, row.description, CONTRACTOR_TYPE_LABELS[row.contractorType],
         row.contractorType === "self" ? "외부업체 없음" : row.contractorName,
-        row.contractorQuoteAmount, DAY_TYPE_LABELS[row.dayType], row.headcount, row.days,
+        row.baseAmount, row.applyOverhead ? "적용" : "미적용", row.additionalCost, DAY_TYPE_LABELS[row.dayType], row.headcount, row.days, row.totalAmount,
       ]),
       [],
-      ["공무기술팀 인원", internalHeadcount],
-      ["공무기술팀 작업일수", internalDays],
       ["공무기술팀 노무비", result.internalLaborAmount],
       ["외부업체 견적 합계", result.externalContractorAmount],
       ["실제 투입 노무비", result.grandTotal],
@@ -611,12 +580,12 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
 
             <Card className="border-slate-200 shadow-sm">
               <CardHeader className="flex-row items-center justify-between gap-3 border-b border-slate-100">
-                <div><CardTitle className="text-base">투입 계획</CardTitle><p className="mt-1 text-sm text-slate-500">외부업체는 받은 견적금액을 입력하고, 자체 투입은 외부업체 비용에서 제외합니다.</p></div>
+                <div><CardTitle className="text-base">투입 계획 및 노무비</CardTitle><p className="mt-1 text-sm text-slate-500">자체는 공무기술팀 노무비로 계산됩니다. 필요한 행만 관리비 10%와 공구손료 3%를 선택하세요.</p></div>
                 <div className="flex shrink-0 flex-wrap justify-end gap-2"><Button variant="outline" size="sm" onClick={() => setDailyReportOpen(true)}><FileInput /> 공사일보 PDF 불러오기</Button><Button variant="outline" size="sm" onClick={() => setRows((current) => sortRowsByDate([...current, newRow(workSite)]))}><Plus /> 작업 추가</Button></div>
               </CardHeader>
               <CardContent className="p-0">
                 <Table>
-                  <TableHeader><TableRow className="bg-slate-50"><TableHead className="min-w-[145px] pl-5">투입일자</TableHead><TableHead className="min-w-[300px]">작업내용</TableHead><TableHead className="min-w-[145px]">투입구분</TableHead><TableHead className="min-w-[150px]">업체명</TableHead><TableHead className="min-w-[155px]">업체 견적금액</TableHead><TableHead className="min-w-[115px]">근무구분</TableHead><TableHead className="w-[85px]">인원</TableHead><TableHead className="w-[85px]">일수</TableHead><TableHead className="w-12" /></TableRow></TableHeader>
+                  <TableHeader><TableRow className="bg-slate-50"><TableHead className="min-w-[165px] pl-5">투입일자</TableHead><TableHead className="min-w-[260px]">작업내용</TableHead><TableHead className="min-w-[135px]">투입구분</TableHead><TableHead className="min-w-[140px]">업체명</TableHead><TableHead className="min-w-[145px]">기본 노무비</TableHead><TableHead className="min-w-[125px] text-center">관리비·공구손료</TableHead><TableHead className="min-w-[135px]">추가 비용</TableHead><TableHead className="min-w-[110px]">근무구분</TableHead><TableHead className="w-[75px]">인원</TableHead><TableHead className="w-[75px]">일수</TableHead><TableHead className="min-w-[130px] text-right">계산 노무비</TableHead><TableHead className="w-12" /></TableRow></TableHeader>
                   <TableBody>
                     {result.rows.map((row) => (
                       <TableRow key={row.id}>
@@ -632,8 +601,10 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
                             <SelectContent>{Object.entries(CONTRACTOR_TYPE_LABELS).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent>
                           </Select>
                         </TableCell>
-                        <TableCell>{row.contractorType === "self" ? <span className="text-sm text-slate-400">외부업체 없음</span> : row.contractorType === "direct" ? <Input value={row.contractorName} onChange={(event) => updateRow(row.id, { contractorName: event.target.value })} placeholder="업체명 입력" aria-label="업체명" /> : <span className="text-sm text-slate-700">{row.contractorName}</span>}</TableCell>
-                        <TableCell><Input type="number" min="0" step="10000" value={row.contractorQuoteAmount} disabled={row.contractorType === "self"} onChange={(event) => updateRow(row.id, { contractorQuoteAmount: Number(event.target.value) })} aria-label="업체 견적금액" /></TableCell>
+                        <TableCell>{row.contractorType === "self" ? <span className="text-sm font-medium text-cyan-700">공무기술팀</span> : row.contractorType === "direct" ? <Input value={row.contractorName} onChange={(event) => updateRow(row.id, { contractorName: event.target.value })} placeholder="업체명 입력" aria-label="업체명" /> : <span className="text-sm text-slate-700">{row.contractorName}</span>}</TableCell>
+                        <TableCell><Input type="number" min="0" step="10000" value={row.contractorType === "self" ? row.baseAmount : row.contractorQuoteAmount} disabled={row.contractorType === "self"} onChange={(event) => updateRow(row.id, { contractorQuoteAmount: Number(event.target.value) })} aria-label="기본 노무비" /></TableCell>
+                        <TableCell><div className="flex justify-center"><Checkbox checked={row.applyOverhead} onCheckedChange={(checked) => updateRow(row.id, { applyOverhead: checked === true })} aria-label="일반관리비 10% 및 공구손료 3% 적용" /></div><p className="mt-1 text-center text-xs text-slate-500">10% + 3%</p></TableCell>
+                        <TableCell><Input type="number" min="0" step="10000" value={row.additionalCost} onChange={(event) => updateRow(row.id, { additionalCost: Number(event.target.value) })} aria-label="행 추가 비용" /></TableCell>
                         <TableCell>
                           <Select value={row.dayType} onValueChange={(value) => updateRow(row.id, { dayType: value as DayType })}>
                             <SelectTrigger className="w-full" aria-label="근무 구분"><SelectValue /></SelectTrigger>
@@ -642,23 +613,12 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
                         </TableCell>
                         <TableCell><Input type="number" min="1" max="100" value={row.headcount} onChange={(event) => updateRow(row.id, { headcount: Number(event.target.value) })} aria-label="투입 인원" /></TableCell>
                         <TableCell><Input type="number" min="0.5" step="0.5" value={row.days} onChange={(event) => updateRow(row.id, { days: Number(event.target.value) })} aria-label="작업일수" /></TableCell>
+                        <TableCell className="text-right font-semibold tabular-nums">{formatWon(row.totalAmount)}</TableCell>
                         <TableCell><Button variant="ghost" size="icon-sm" aria-label="작업 삭제" disabled={rows.length === 1} onClick={() => setRows((current) => current.filter((item) => item.id !== row.id))}><Trash2 className="text-slate-500" /></Button></TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
-              </CardContent>
-            </Card>
-
-            <Card className="border-cyan-200 bg-cyan-50/40 shadow-sm">
-              <CardHeader className="border-b border-cyan-100">
-                <CardTitle className="text-base">공무기술팀 노무비</CardTitle>
-                <p className="text-sm text-slate-500">서울영상테크 인원은 공사일보에서 자동 반영되며, 일반관리비·공구손료·요일 가산 없이 1인 1일 300,000원으로 계산합니다.</p>
-              </CardHeader>
-              <CardContent className="grid items-end gap-4 pt-5 sm:grid-cols-[1fr_1fr_1.3fr]">
-                <div className="space-y-2"><Label htmlFor="internalHeadcount">투입 인원</Label><Input id="internalHeadcount" type="number" min="0" max="100" value={internalHeadcount} onChange={(event) => setInternalHeadcount(Number(event.target.value))} /></div>
-                <div className="space-y-2"><Label htmlFor="internalDays">작업일수</Label><Input id="internalDays" type="number" min="0" step="0.5" value={internalDays} onChange={(event) => setInternalDays(Number(event.target.value))} /></div>
-                <div className="rounded-xl border border-cyan-200 bg-white px-4 py-3"><p className="text-xs text-slate-500">공무기술팀 합계</p><p className="mt-1 text-xl font-semibold text-cyan-800 tabular-nums">{formatWon(result.internalLaborAmount)}</p></div>
               </CardContent>
             </Card>
 
@@ -675,12 +635,12 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
             <Card className="overflow-hidden border-0 bg-[#0c2340] text-white shadow-lg">
               <CardHeader className="border-b border-white/10"><div className="flex items-center justify-between"><CardTitle className="text-base text-white">산출 결과</CardTitle><span className="rounded-full bg-cyan-400/15 px-2.5 py-1 text-xs text-cyan-300">실시간 계산</span></div></CardHeader>
               <CardContent className="space-y-4 pt-5">
-                <div className="grid grid-cols-2 gap-3"><SummaryMetric icon={<Users />} label="총 공수" value={`${(result.units + result.internalWorkUnits).toLocaleString("ko-KR")}인일`} /><SummaryMetric icon={<CalendarDays />} label="작업 항목" value={`${rows.length}건`} /></div>
-                <div className="space-y-2.5 border-t border-white/10 pt-4 text-sm"><SummaryLine label="외부업체 견적 합계" value={result.externalContractorAmount} /><SummaryLine label="공무기술팀 노무비" value={result.internalLaborAmount} /><SummaryLine label="추가 비용" value={result.extraCosts} /></div>
+                <div className="grid grid-cols-2 gap-3"><SummaryMetric icon={<Users />} label="총 공수" value={`${result.units.toLocaleString("ko-KR")}인일`} /><SummaryMetric icon={<CalendarDays />} label="작업 항목" value={`${rows.length}건`} /></div>
+                <div className="space-y-2.5 border-t border-white/10 pt-4 text-sm"><SummaryLine label="외부업체 노무비" value={result.externalContractorAmount} /><SummaryLine label="공무기술팀 노무비" value={result.internalLaborAmount} /><SummaryLine label="공통 추가 비용" value={result.extraCosts} /></div>
                 <div className="border-t border-white/15 pt-4"><p className="text-sm text-slate-300">실제 투입 노무비</p><p className="mt-1 text-3xl font-semibold tracking-tight text-cyan-300 tabular-nums">{formatWon(result.grandTotal)}</p><p className="mt-2 text-xs text-slate-300">추가 비용 포함 총액 {formatWon(result.totalCost)}</p></div>
               </CardContent>
             </Card>
-            <Card className="border-slate-200 shadow-sm"><CardHeader><CardTitle className="text-base">집계 기준</CardTitle></CardHeader><CardContent className="space-y-3 text-sm"><div className="flex items-center justify-between gap-4"><span className="text-slate-600">외부업체</span><span className="font-medium">입력 견적금액</span></div><div className="flex items-center justify-between gap-4"><span className="text-slate-600">자체 투입</span><span className="font-medium">외부비용 없음</span></div><div className="flex items-center justify-between gap-4"><span className="text-slate-600">공무기술팀</span><span className="font-medium tabular-nums">{formatWon(INTERNAL_LABOR_RATE)} / 인일</span></div><p className="border-t border-slate-100 pt-3 text-xs leading-5 text-slate-500">실제 투입 노무비는 외부업체 견적금액과 공무기술팀 노무비를 항상 합산합니다.</p></CardContent></Card>
+            <Card className="border-slate-200 shadow-sm"><CardHeader><CardTitle className="text-base">집계 기준</CardTitle></CardHeader><CardContent className="space-y-3 text-sm"><div className="flex items-center justify-between gap-4"><span className="text-slate-600">자체 투입</span><span className="font-medium tabular-nums">공무기술팀 {formatWon(INTERNAL_LABOR_RATE)} / 인일</span></div><div className="flex items-center justify-between gap-4"><span className="text-slate-600">선택 가산</span><span className="font-medium">일반관리비 10% + 공구손료 3%</span></div><div className="flex items-center justify-between gap-4"><span className="text-slate-600">요일 가산</span><span className="font-medium">토 5만원 · 휴일 10만원 / 인일</span></div><p className="border-t border-slate-100 pt-3 text-xs leading-5 text-slate-500">각 행의 기본 노무비, 선택 가산, 요일 가산과 추가 비용을 합산합니다.</p></CardContent></Card>
           </aside>
         </div>
 
