@@ -166,7 +166,7 @@ export function calculateRow(row: LaborRow, rates = DEFAULT_RATES) {
   const days = Math.max(0, Number(row.days) || 0);
   const units = headcount * days;
   const contractorQuoteAmount = Math.max(0, Math.round(Number(row.contractorQuoteAmount) || 0));
-  const baseAmount = row.contractorType === "self" ? Math.round(units * rates.baseRate) : contractorQuoteAmount;
+  const baseAmount = Math.round(units * rates.baseRate);
   const adminAmount = row.applyOverhead ? Math.round(baseAmount * (rates.adminRate / 100)) : 0;
   const toolAmount = row.applyOverhead ? Math.round(baseAmount * (rates.toolRate / 100)) : 0;
   const daySurcharge = row.dayType === "holiday"

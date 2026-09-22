@@ -43,5 +43,5 @@ test("parses project, dates, work and daytime labor candidates", () => {
   assert.equal(plan.internalWorkUnits, 3);
   assert.deepEqual(plan.internalCandidates.map((candidate) => candidate.sourceCompanyName), ["서울영상테크"]);
   assert.deepEqual(plan.externalCandidates.map((candidate) => candidate.sourceCompanyName), ["RTA"]);
-  assert.equal(plan.externalCandidates[0].contractorQuoteAmount, 900_000);
+  assert.equal(plan.externalCandidates[0].contractorQuoteAmount, 300_000);
 });

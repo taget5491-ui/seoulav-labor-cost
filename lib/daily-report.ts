@@ -76,7 +76,7 @@ function extractLaborCandidates(lines: TextLine[], pageWidth: number, reportDate
       }, null);
       if (!count?.value) continue;
       const normalized = normalizeCompany(company.text);
-      const contractorQuoteAmount = normalized.contractorType === "self" ? 0 : count.value * DEFAULT_RATES.baseRate;
+      const contractorQuoteAmount = DEFAULT_RATES.baseRate;
       candidates.push({
         id: `${shift}-${company.x}-${company.y}`,
         workDate: reportDate,
@@ -172,7 +172,7 @@ export function planDailyReportImport(
   return {
     externalCandidates: selected.filter((candidate) => candidate.contractorType !== "self").map((candidate) => ({
       ...candidate,
-      contractorQuoteAmount: candidate.headcount * candidate.days * DEFAULT_RATES.baseRate,
+      contractorQuoteAmount: DEFAULT_RATES.baseRate,
     })),
     internalCandidates: selected.filter((candidate) => candidate.contractorType === "self"),
     internalWorkUnits: selected.filter((candidate) => candidate.contractorType === "self").reduce((sum, candidate) => sum + candidate.headcount * candidate.days, 0),

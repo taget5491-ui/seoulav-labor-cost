@@ -25,6 +25,16 @@ test("calculates self labor, selected overhead and row additional cost", () => {
   assert.equal(total.totalAmount, 798_000);
 });
 
+test("uses the fixed 300,000 won daily rate for external contractors", () => {
+  const total = calculateRow({
+    id: "external-1", description: "설치", workSite: "DSR", workDate: "2026-08-05", dayType: "weekday",
+    headcount: 3, days: 1, contractorType: "external", contractorName: "RTA", contractorQuoteAmount: 900_000,
+    applyOverhead: false, additionalCost: 0,
+  });
+  assert.equal(total.baseAmount, 900_000);
+  assert.equal(total.totalAmount, 900_000);
+});
+
 test("handles lunar holidays and Korean substitute-holiday rules", () => {
   assert.equal(isKoreanPublicHoliday("2026-02-17"), true);
   assert.equal(isKoreanPublicHoliday("2026-05-24"), true);
