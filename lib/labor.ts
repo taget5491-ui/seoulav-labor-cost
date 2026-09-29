@@ -67,6 +67,14 @@ export const DAY_TYPE_LABELS: Record<DayType, string> = {
   holiday: "휴일",
 };
 
+export function contractorCostPolicy(row: Pick<LaborRow, "contractorType" | "applyOverhead">, rates = DEFAULT_RATES) {
+  if (row.contractorType === "vsent") return { adminRate: 15, toolRate: 0, mealRate: 0, automatic: true, label: "관리비 15%" };
+  if (row.contractorType === "rta") return { adminRate: 10, toolRate: 3, mealRate: 0, automatic: true, label: "관리비 10% + 공구 3%" };
+  if (row.contractorType === "coreworker") return { adminRate: 10, toolRate: 3, mealRate: 10_000, automatic: true, label: "관리비 10% + 공구 3% + 식대 1만원" };
+  if (row.applyOverhead) return { adminRate: rates.adminRate, toolRate: rates.toolRate, mealRate: 0, automatic: false, label: `관리비 ${rates.adminRate}% + 공구 ${rates.toolRate}%` };
+  return { adminRate: 0, toolRate: 0, mealRate: 0, automatic: false, label: "미적용" };
+}
+
 const holidayCache = new Map<number, Set<string>>();
 const KNOWN_ELECTION_HOLIDAYS = new Set(["2025-06-03", "2026-06-03"]);
 const WEEKDAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"] as const;
@@ -167,8 +175,10 @@ export function calculateRow(row: LaborRow, rates = DEFAULT_RATES) {
   const units = headcount * days;
   const contractorQuoteAmount = Math.max(0, Math.round(Number(row.contractorQuoteAmount) || 0));
   const baseAmount = Math.round(units * rates.baseRate);
-  const adminAmount = row.applyOverhead ? Math.round(baseAmount * (rates.adminRate / 100)) : 0;
-  const toolAmount = row.applyOverhead ? Math.round(baseAmount * (rates.toolRate / 100)) : 0;
+  const policy = contractorCostPolicy(row, rates);
+  const adminAmount = Math.round(baseAmount * (policy.adminRate / 100));
+  const toolAmount = Math.round(baseAmount * (policy.toolRate / 100));
+  const mealAmount = Math.round(units * policy.mealRate);
   const daySurcharge = row.dayType === "holiday"
     ? rates.holidaySurcharge
     : row.dayType === "saturday"
@@ -183,9 +193,10 @@ export function calculateRow(row: LaborRow, rates = DEFAULT_RATES) {
     baseAmount,
     adminAmount,
     toolAmount,
+    mealAmount,
     surchargeAmount,
     additionalCost,
-    totalAmount: baseAmount + adminAmount + toolAmount + surchargeAmount + additionalCost,
+    totalAmount: baseAmount + adminAmount + toolAmount + mealAmount + surchargeAmount + additionalCost,
     contractorQuoteAmount,
   };
 }
@@ -204,10 +215,11 @@ export function calculateEstimate(
       baseAmount: sum.baseAmount + row.baseAmount,
       adminAmount: sum.adminAmount + row.adminAmount,
       toolAmount: sum.toolAmount + row.toolAmount,
+      mealAmount: sum.mealAmount + row.mealAmount,
       surchargeAmount: sum.surchargeAmount + row.surchargeAmount,
       totalAmount: sum.totalAmount + row.totalAmount,
     }),
-    { units: 0, baseAmount: 0, adminAmount: 0, toolAmount: 0, surchargeAmount: 0, totalAmount: 0 },
+    { units: 0, baseAmount: 0, adminAmount: 0, toolAmount: 0, mealAmount: 0, surchargeAmount: 0, totalAmount: 0 },
   );
   const safeExtraCosts = Math.max(0, Math.round(Number(extraCosts) || 0));
   const legacyInternalUnits = Math.max(0, Math.floor(Number(internalHeadcount) || 0)) * Math.max(0, Number(internalDays) || 0);
