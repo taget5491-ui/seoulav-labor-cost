@@ -37,6 +37,8 @@ export default async function DashboardPage() {
       contractorName: entry.contractor_type === "legacy" ? "기존 산정" : String(entry.contractor_name ?? ""),
       contractorQuoteAmount: Number(entry.contractor_type === "legacy" ? entry.total_amount : entry.contractor_quote_amount ?? 0),
       applyOverhead: Boolean(entry.apply_overhead), additionalCost: Number(entry.additional_cost ?? 0),
+      useBaseRate: entry.use_base_rate === undefined ? true : Boolean(entry.use_base_rate),
+      manualLaborAmount: Number(entry.manual_labor_amount ?? 0),
     })),
   }));
   return <LaborDashboard displayName={user.displayName} initialEstimates={initialEstimates} />;

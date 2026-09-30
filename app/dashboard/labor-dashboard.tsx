@@ -26,6 +26,7 @@ const STATUS_LABELS: Record<Status, string> = { draft: "작성 중", review: "�
 const STATUS_STYLES: Record<Status, string> = { draft: "bg-slate-100 text-slate-700", review: "bg-amber-100 text-amber-800", confirmed: "bg-emerald-100 text-emerald-800", closed: "bg-blue-100 text-blue-800" };
 const TREND_CONFIG = { quoted: { label: "견적 노무비", color: "#0891b2" }, actual: { label: "실제 노무비", color: "#f59e0b" } } satisfies ChartConfig;
 const TOTAL_CONFIG = { total: { label: "노무비", color: "#0891b2" } } satisfies ChartConfig;
+const COUNT_CONFIG = { count: { label: "공사 수", color: "#2563eb" } } satisfies ChartConfig;
 const ALL = "__all__";
 
 const amountTick = (value: number) => value >= 100_000_000 ? `${(value / 100_000_000).toFixed(1)}억` : value >= 10_000 ? `${Math.round(value / 10_000)}만` : String(value);
@@ -40,6 +41,8 @@ export function LaborDashboard({ displayName, initialEstimates }: { displayName:
   const [status, setStatus] = useState(ALL);
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+  const latestMonth = useMemo(() => [...items].filter((item) => !item.archivedAt).map((item) => effectiveDate(item).slice(0, 7)).filter(Boolean).sort().at(-1) ?? new Date().toISOString().slice(0, 7), [items]);
+  const [selectedMonth, setSelectedMonth] = useState(latestMonth);
 
   const sites = useMemo(() => [...new Set(items.map((item) => item.siteName).filter(Boolean))].sort(), [items]);
   const companies = useMemo(() => [...new Set(items.flatMap((item) => [item.companyName, ...item.entries.filter((row) => row.contractorType !== "self").map((row) => row.contractorName)]).filter(Boolean))].sort(), [items]);
@@ -53,27 +56,30 @@ export function LaborDashboard({ displayName, initialEstimates }: { displayName:
   }), [items, search, site, company, status, from, to]);
 
   const summaries = useMemo(() => {
-    const quoted = filtered.reduce((sum, item) => sum + Number(item.quotedLaborAmount || 0), 0);
-    const actual = filtered.reduce((sum, item) => sum + Number(item.totalAmount || 0), 0);
+    const totals = summarize(filtered);
     const internal = filtered.reduce((sum, item) => sum + Number(item.internalLaborAmount || 0), 0);
     const headcount = filtered.reduce((sum, item) => sum + item.entries.reduce((entrySum, row) => entrySum + Number(row.headcount || 0), 0), 0);
-    return { quoted, actual, internal, headcount, rate: quoted ? (actual / quoted) * 100 : 0 };
+    return { ...totals, internal, headcount };
   }, [filtered]);
 
   const siteData = useMemo(() => {
-    const map = new Map<string, number>();
-    filtered.forEach((item) => map.set(item.siteName || "미지정", (map.get(item.siteName || "미지정") ?? 0) + Number(item.totalAmount || 0)));
-    return [...map].map(([name, total]) => ({ name, total })).sort((a, b) => b.total - a.total).slice(0, 10);
+    const map = new Map<string, { count: number; quoted: number; actual: number }>();
+    filtered.forEach((item) => {
+      const name = item.siteName || "미지정";
+      const current = map.get(name) ?? { count: 0, quoted: 0, actual: 0 };
+      current.count += 1; current.quoted += Number(item.quotedLaborAmount || 0); current.actual += Number(item.totalAmount || 0); map.set(name, current);
+    });
+    return [...map].map(([name, values]) => ({ name, ...values })).sort((a, b) => b.count - a.count || b.actual - a.actual);
   }, [filtered]);
   const companyData = useMemo(() => {
     const map = new Map<string, number>();
     filtered.forEach((item) => {
-      item.entries.filter((row) => row.contractorType !== "self").forEach((row) => {
-        const name = row.contractorName || item.companyName || "업체 미지정";
+      item.entries.forEach((row) => {
+        const name = row.contractorType === "self" ? "공무기술팀" : row.contractorName || item.companyName || "업체 미지정";
         map.set(name, (map.get(name) ?? 0) + calculateRow(row).totalAmount);
       });
     });
-    return [...map].map(([name, total]) => ({ name, total })).sort((a, b) => b.total - a.total).slice(0, 10);
+    return [...map].map(([name, total]) => ({ name, total })).sort((a, b) => b.total - a.total);
   }, [filtered]);
   const monthlyData = useMemo(() => {
     const map = new Map<string, { quoted: number; actual: number }>();
@@ -85,6 +91,11 @@ export function LaborDashboard({ displayName, initialEstimates }: { displayName:
     return [...map].map(([month, value]) => ({ month, ...value })).sort((a, b) => a.month.localeCompare(b.month));
   }, [filtered]);
 
+  const monthlyItems = useMemo(() => filtered.filter((item) => effectiveDate(item).slice(0, 7) === selectedMonth), [filtered, selectedMonth]);
+  const monthlySummary = useMemo(() => summarize(monthlyItems), [monthlyItems]);
+  const monthlySites = useMemo(() => aggregateSites(monthlyItems), [monthlyItems]);
+  const monthlyCompanies = useMemo(() => aggregateCompanies(monthlyItems), [monthlyItems]);
+
   const resetFilters = () => { setSearch(""); setSite(ALL); setCompany(ALL); setStatus(ALL); setFrom(""); setTo(""); };
   const exportReport = () => {
     const rows: unknown[][] = [
@@ -93,7 +104,11 @@ export function LaborDashboard({ displayName, initialEstimates }: { displayName:
       ["요약"], ["프로젝트", filtered.length, "실제 노무비", summaries.actual, "견적 노무비", summaries.quoted, "집행률", `${summaries.rate.toFixed(1)}%`, "공무기술팀", summaries.internal], [],
       ["프로젝트별 상세"], ["기준일", "프로젝트", "사업장", "업체", "상태", "담당자", "투입 인원", "견적 노무비", "실제 노무비", "공무기술팀 노무비"],
       ...filtered.map((item) => [effectiveDate(item), item.projectName, item.siteName, item.companyName, STATUS_LABELS[item.status], item.managerName, item.entries.reduce((sum, row) => sum + Number(row.headcount || 0), 0), item.quotedLaborAmount, item.totalAmount, item.internalLaborAmount]),
-      [], ["사업장별 요약"], ["사업장", "노무비"], ...siteData.map((row) => [row.name, row.total]),
+      [], ["월별 총 집계", selectedMonth], ["공사 수", monthlySummary.count, "견적 노무비", monthlySummary.quoted, "실제 노무비", monthlySummary.actual, "집행률", `${monthlySummary.rate.toFixed(1)}%`],
+      ["월별 사업장", "공사 수", "견적 노무비", "실제 노무비"], ...monthlySites.map((row) => [row.name, row.count, row.quoted, row.actual]),
+      ["월별 업체", "노무비"], ...monthlyCompanies.map((row) => [row.name, row.total]),
+      [], ["전체 총 집계"], ["공사 수", summaries.count, "견적 노무비", summaries.quoted, "실제 노무비", summaries.actual, "집행률", `${summaries.rate.toFixed(1)}%`],
+      [], ["사업장별 요약"], ["사업장", "공사 수", "견적 노무비", "실제 노무비"], ...siteData.map((row) => [row.name, row.count, row.quoted, row.actual]),
       [], ["업체별 요약"], ["업체", "노무비"], ...companyData.map((row) => [row.name, row.total]),
       [], ["월별 추이"], ["월", "견적 노무비", "실제 노무비"], ...monthlyData.map((row) => [row.month, row.quoted, row.actual]),
     ];
@@ -122,6 +137,23 @@ export function LaborDashboard({ displayName, initialEstimates }: { displayName:
         <div className="flex items-end"><Button variant="outline" onClick={resetFilters}><RotateCcw /> 초기화</Button></div>
       </CardContent></Card>
       <>
+        <section className="mb-8 rounded-2xl border border-cyan-200 bg-gradient-to-br from-cyan-50 via-white to-blue-50 p-4 shadow-sm sm:p-6">
+          <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+            <div><p className="text-xs font-semibold tracking-[0.18em] text-cyan-700">MONTHLY SUMMARY</p><h2 className="mt-1 text-xl font-semibold">월별 총 집계현황</h2><p className="mt-1 text-sm text-slate-500">선택한 월의 사업장별 공사 수와 견적·실제 노무비, 업체별 집행액입니다.</p></div>
+            <div className="no-print space-y-1.5"><Label htmlFor="summary-month">집계 월</Label><Input id="summary-month" type="month" value={selectedMonth} onChange={(event) => setSelectedMonth(event.target.value)} className="w-44 bg-white" /></div>
+          </div>
+          <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <MetricCard label="월 공사 수" value={`${monthlySummary.count}건`} sub={`${selectedMonth || "월 미지정"} 기준`} />
+            <MetricCard label="견적 노무비 합계" value={formatWon(monthlySummary.quoted)} sub="선택 월 견적 합계" />
+            <MetricCard label="실제 노무비 합계" value={formatWon(monthlySummary.actual)} sub="선택 월 실제 집행" />
+            <MetricCard label="노무비 집행률" value={`${monthlySummary.rate.toFixed(1)}%`} sub={monthlySummary.rate > 100 ? "견적 초과" : "견적 대비 실제"} alert={monthlySummary.rate > 100} />
+          </div>
+          <div className="grid gap-5 xl:grid-cols-2">
+            <SummaryPanel title="월별 사업장 공사 수" rows={monthlySites} kind="site" />
+            <SummaryPanel title="월별 업체 노무비 합계" rows={monthlyCompanies} kind="company" />
+          </div>
+        </section>
+        <div className="mb-4"><p className="text-xs font-semibold tracking-[0.18em] text-blue-700">TOTAL SUMMARY</p><h2 className="mt-1 text-xl font-semibold">전체 총 집계</h2><p className="mt-1 text-sm text-slate-500">현재 필터 조건에 포함된 모든 공사의 누적 집계입니다.</p></div>
         <section className="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
           {[
             { label: "프로젝트", value: `${filtered.length}건`, sub: `전체 ${items.filter((item) => !item.archivedAt).length}건`, icon: FileText, tone: "text-cyan-700 bg-cyan-50" },
@@ -133,10 +165,10 @@ export function LaborDashboard({ displayName, initialEstimates }: { displayName:
         </section>
         <section className="mb-5 grid gap-5 xl:grid-cols-2">
           <Card className="border-slate-200 shadow-sm"><CardHeader><CardTitle className="text-base">월별 견적 대비 실제 노무비</CardTitle></CardHeader><CardContent>{monthlyData.length ? <ChartContainer config={TREND_CONFIG} className="h-[310px] w-full aspect-auto"><LineChart data={monthlyData} margin={{ left: 8, right: 16 }}><CartesianGrid vertical={false}/><XAxis dataKey="month" tickLine={false} axisLine={false}/><YAxis tickFormatter={amountTick} width={58} tickLine={false} axisLine={false}/><ChartTooltip content={<ChartTooltipContent formatter={(value) => formatWon(Number(value))}/>}/><Line dataKey="quoted" type="monotone" stroke="var(--color-quoted)" strokeWidth={3} dot={false}/><Line dataKey="actual" type="monotone" stroke="var(--color-actual)" strokeWidth={3} dot={false}/></LineChart></ChartContainer> : <EmptyChart />}</CardContent></Card>
-          <Card className="border-slate-200 shadow-sm"><CardHeader><CardTitle className="text-base">사업장별 노무비 TOP 10</CardTitle></CardHeader><CardContent>{siteData.length ? <ChartContainer config={TOTAL_CONFIG} className="h-[310px] w-full aspect-auto"><BarChart data={siteData} layout="vertical" margin={{ left: 12, right: 28 }}><CartesianGrid horizontal={false}/><XAxis type="number" tickFormatter={amountTick} tickLine={false} axisLine={false}/><YAxis type="category" dataKey="name" width={100} tickLine={false} axisLine={false}/><ChartTooltip content={<ChartTooltipContent formatter={(value) => formatWon(Number(value))}/>}/><Bar dataKey="total" fill="var(--color-total)" radius={[0, 5, 5, 0]}/></BarChart></ChartContainer> : <EmptyChart />}</CardContent></Card>
+          <Card className="border-slate-200 shadow-sm"><CardHeader><CardTitle className="text-base">전체 사업장별 공사 수</CardTitle></CardHeader><CardContent>{siteData.length ? <ChartContainer config={COUNT_CONFIG} className="h-[310px] w-full aspect-auto"><BarChart data={siteData.slice(0, 10)} layout="vertical" margin={{ left: 12, right: 28 }}><CartesianGrid horizontal={false}/><XAxis type="number" allowDecimals={false} tickLine={false} axisLine={false}/><YAxis type="category" dataKey="name" width={100} tickLine={false} axisLine={false}/><ChartTooltip content={<ChartTooltipContent formatter={(value) => `${Number(value).toLocaleString("ko-KR")}건`}/>}/><Bar dataKey="count" fill="var(--color-count)" radius={[0, 5, 5, 0]}/></BarChart></ChartContainer> : <EmptyChart />}</CardContent></Card>
         </section>
         <section className="mb-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(380px,0.65fr)]">
-          <Card className="border-slate-200 shadow-sm"><CardHeader><CardTitle className="text-base">업체별 외주 노무비 TOP 10</CardTitle></CardHeader><CardContent>{companyData.length ? <ChartContainer config={TOTAL_CONFIG} className="h-[300px] w-full aspect-auto"><BarChart data={companyData} margin={{ left: 8, right: 16 }}><CartesianGrid vertical={false}/><XAxis dataKey="name" tickLine={false} axisLine={false}/><YAxis tickFormatter={amountTick} width={58} tickLine={false} axisLine={false}/><ChartTooltip content={<ChartTooltipContent formatter={(value) => formatWon(Number(value))}/>}/><Bar dataKey="total" fill="var(--color-total)" radius={[5, 5, 0, 0]}/></BarChart></ChartContainer> : <EmptyChart />}</CardContent></Card>
+          <Card className="border-slate-200 shadow-sm"><CardHeader><CardTitle className="text-base">전체 업체별 노무비 합계</CardTitle></CardHeader><CardContent>{companyData.length ? <ChartContainer config={TOTAL_CONFIG} className="h-[300px] w-full aspect-auto"><BarChart data={companyData.slice(0, 10)} margin={{ left: 8, right: 16 }}><CartesianGrid vertical={false}/><XAxis dataKey="name" tickLine={false} axisLine={false}/><YAxis tickFormatter={amountTick} width={58} tickLine={false} axisLine={false}/><ChartTooltip content={<ChartTooltipContent formatter={(value) => formatWon(Number(value))}/>}/><Bar dataKey="total" fill="var(--color-total)" radius={[5, 5, 0, 0]}/></BarChart></ChartContainer> : <EmptyChart />}</CardContent></Card>
           <Card className="border-slate-200 shadow-sm"><CardHeader><CardTitle className="text-base">진행 상태</CardTitle></CardHeader><CardContent className="space-y-4">{(Object.keys(STATUS_LABELS) as Status[]).map((key) => { const count = filtered.filter((item) => item.status === key).length; const ratio = filtered.length ? count / filtered.length * 100 : 0; return <div key={key}><div className="mb-1.5 flex justify-between text-sm"><span>{STATUS_LABELS[key]}</span><span className="font-medium">{count}건 · {ratio.toFixed(0)}%</span></div><div className="h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-cyan-600" style={{ width: `${ratio}%` }}/></div></div>; })}</CardContent></Card>
         </section>
         <Card className="border-slate-200 shadow-sm"><CardHeader className="flex-row items-center justify-between"><CardTitle className="text-base">프로젝트 상세</CardTitle><span className="text-sm text-slate-500">{filtered.length}건</span></CardHeader><CardContent className="overflow-x-auto p-0"><Table><TableHeader><TableRow><TableHead>기준일</TableHead><TableHead>프로젝트</TableHead><TableHead>사업장</TableHead><TableHead>업체</TableHead><TableHead>상태</TableHead><TableHead className="text-right">투입 인원</TableHead><TableHead className="text-right">견적 노무비</TableHead><TableHead className="text-right">실제 노무비</TableHead><TableHead className="text-right">차이</TableHead></TableRow></TableHeader><TableBody>{filtered.map((item) => { const count = item.entries.reduce((sum, row) => sum + Number(row.headcount || 0), 0); const difference = Number(item.totalAmount || 0) - Number(item.quotedLaborAmount || 0); return <TableRow key={item.id}><TableCell className="whitespace-nowrap">{effectiveDate(item) || "-"}</TableCell><TableCell className="max-w-72 font-medium">{item.projectName}</TableCell><TableCell>{item.siteName || "-"}</TableCell><TableCell>{item.companyName || item.entries.find((row) => row.contractorType !== "self")?.contractorName || "-"}</TableCell><TableCell><span className={`whitespace-nowrap rounded-full px-2 py-1 text-xs ${STATUS_STYLES[item.status]}`}>{STATUS_LABELS[item.status]}</span></TableCell><TableCell className="text-right">{count.toLocaleString("ko-KR")}명</TableCell><TableCell className="text-right">{formatWon(item.quotedLaborAmount)}</TableCell><TableCell className="text-right font-medium">{formatWon(item.totalAmount)}</TableCell><TableCell className={`text-right ${difference > 0 ? "text-red-600" : "text-emerald-700"}`}>{difference > 0 ? "+" : ""}{formatWon(difference)}</TableCell></TableRow>; })}{!filtered.length && <TableRow><TableCell colSpan={9} className="h-32 text-center text-slate-500">조건에 맞는 프로젝트가 없습니다.</TableCell></TableRow>}</TableBody></Table></CardContent></Card>
@@ -145,4 +177,41 @@ export function LaborDashboard({ displayName, initialEstimates }: { displayName:
   </div>;
 }
 
-function EmptyChart() { return <div className="grid h-[300px] place-items-center rounded-xl bg-slate-50 text-sm text-slate-500">표시할 데이터가 없습니다.</div>; }
+function MetricCard({ label, value, sub, alert = false }: { label: string; value: string; sub: string; alert?: boolean }) {
+  return <div className="rounded-xl border border-white bg-white/90 p-4 shadow-sm"><p className="text-sm text-slate-500">{label}</p><p className={`mt-1 text-2xl font-semibold ${alert ? "text-red-600" : "text-slate-900"}`}>{value}</p><p className="mt-1 text-xs text-slate-500">{sub}</p></div>;
+}
+
+function SummaryPanel({ title, rows, kind }: { title: string; rows: Array<{ name: string; total?: number; count?: number; quoted?: number; actual?: number }>; kind: "site" | "company" }) {
+  const chartRows = rows.slice(0, 8);
+  return <Card className="border-white bg-white/90 shadow-sm"><CardHeader><CardTitle className="text-base">{title}</CardTitle></CardHeader><CardContent className="space-y-4">
+    {chartRows.length ? <ChartContainer config={kind === "site" ? COUNT_CONFIG : TOTAL_CONFIG} className="h-[250px] w-full aspect-auto"><BarChart data={chartRows} layout="vertical" margin={{ left: 8, right: 22 }}><CartesianGrid horizontal={false}/><XAxis type="number" allowDecimals={kind !== "site"} tickFormatter={kind === "site" ? undefined : amountTick} tickLine={false} axisLine={false}/><YAxis type="category" dataKey="name" width={92} tickLine={false} axisLine={false}/><ChartTooltip content={<ChartTooltipContent formatter={(value) => kind === "site" ? `${Number(value).toLocaleString("ko-KR")}건` : formatWon(Number(value))}/>}/><Bar dataKey={kind === "site" ? "count" : "total"} fill={kind === "site" ? "var(--color-count)" : "var(--color-total)"} radius={[0, 5, 5, 0]}/></BarChart></ChartContainer> : <EmptyChart compact />}
+    {!!rows.length && <div className="max-h-60 overflow-auto rounded-lg border border-slate-200"><Table><TableHeader><TableRow><TableHead>{kind === "site" ? "사업장" : "업체"}</TableHead>{kind === "site" && <TableHead className="text-right">공사 수</TableHead>}{kind === "site" && <TableHead className="text-right">견적</TableHead>}<TableHead className="text-right">{kind === "site" ? "실제" : "노무비 합계"}</TableHead></TableRow></TableHeader><TableBody>{rows.map((row) => <TableRow key={row.name}><TableCell className="font-medium">{row.name}</TableCell>{kind === "site" && <TableCell className="text-right">{row.count?.toLocaleString("ko-KR")}건</TableCell>}{kind === "site" && <TableCell className="text-right">{formatWon(row.quoted ?? 0)}</TableCell>}<TableCell className="text-right">{formatWon(kind === "site" ? row.actual ?? 0 : row.total ?? 0)}</TableCell></TableRow>)}</TableBody></Table></div>}
+  </CardContent></Card>;
+}
+
+function EmptyChart({ compact = false }: { compact?: boolean }) { return <div className={`grid place-items-center rounded-xl bg-slate-50 text-sm text-slate-500 ${compact ? "h-[250px]" : "h-[300px]"}`}>표시할 데이터가 없습니다.</div>; }
+
+function summarize(items: Estimate[]) {
+  const quoted = items.reduce((sum, item) => sum + Number(item.quotedLaborAmount || 0), 0);
+  const actual = items.reduce((sum, item) => sum + Number(item.totalAmount || 0), 0);
+  return { count: items.length, quoted, actual, rate: quoted ? (actual / quoted) * 100 : 0 };
+}
+
+function aggregateSites(items: Estimate[]) {
+  const map = new Map<string, { count: number; quoted: number; actual: number }>();
+  items.forEach((item) => {
+    const name = item.siteName || "미지정";
+    const current = map.get(name) ?? { count: 0, quoted: 0, actual: 0 };
+    current.count += 1; current.quoted += Number(item.quotedLaborAmount || 0); current.actual += Number(item.totalAmount || 0); map.set(name, current);
+  });
+  return [...map].map(([name, values]) => ({ name, ...values })).sort((a, b) => b.count - a.count || b.actual - a.actual);
+}
+
+function aggregateCompanies(items: Estimate[]) {
+  const map = new Map<string, number>();
+  items.forEach((item) => item.entries.forEach((row) => {
+    const name = row.contractorType === "self" ? "공무기술팀" : row.contractorName || item.companyName || "업체 미지정";
+    map.set(name, (map.get(name) ?? 0) + calculateRow(row).totalAmount);
+  }));
+  return [...map].map(([name, total]) => ({ name, total })).sort((a, b) => b.total - a.total);
+}
