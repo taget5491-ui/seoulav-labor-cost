@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type DragEvent } from "react";
+import { useMemo, useState } from "react";
 import { AlertTriangle, FileSearch, LoaderCircle, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -64,13 +64,6 @@ export function DailyReportImportDialog({ open, onOpenChange, existingRows, onAp
     }
   }
 
-  function handleDrop(event: DragEvent<HTMLDivElement>) {
-    event.preventDefault();
-    setIsDragging(false);
-    if (analyzing) return;
-    void handleFile(event.dataTransfer.files?.[0] ?? null);
-  }
-
   function patchExtraction(patch: Partial<DailyReportExtraction>) {
     setExtraction((current) => current ? { ...current, ...patch } : current);
   }
@@ -86,16 +79,27 @@ export function DailyReportImportDialog({ open, onOpenChange, existingRows, onAp
         </DialogHeader>
 
         {!extraction && <div
-          className={`rounded-xl border-2 border-dashed p-8 text-center transition-colors ${isDragging ? "border-cyan-600 bg-cyan-100/80" : "border-cyan-300 bg-cyan-50/50"}`}
-          onDragEnter={(event) => { event.preventDefault(); if (!analyzing) setIsDragging(true); }}
-          onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; }}
-          onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setIsDragging(false); }}
-          onDrop={handleDrop}
+          className={`relative rounded-xl border-2 border-dashed p-8 text-center transition-colors ${isDragging ? "border-cyan-600 bg-cyan-100/80" : "border-cyan-300 bg-cyan-50/50"}`}
+          onDragEnter={() => { if (!analyzing) setIsDragging(true); }}
+          onDragOver={() => { if (!analyzing) setIsDragging(true); }}
+          onDragLeave={(event) => {
+            const nextTarget = event.relatedTarget;
+            if (!(nextTarget instanceof Node) || !event.currentTarget.contains(nextTarget)) setIsDragging(false);
+          }}
+          onDrop={() => setIsDragging(false)}
         >
+          <Input
+            type="file"
+            accept="application/pdf,.pdf"
+            className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
+            disabled={analyzing}
+            aria-label="공사일보 PDF 파일을 선택하거나 끌어다 놓기"
+            onChange={(event) => { void handleFile(event.target.files?.[0] ?? null); event.currentTarget.value = ""; }}
+          />
           <Upload className="mx-auto size-8 text-cyan-700" />
           <p className="mt-3 font-medium">공사일보 PDF를 여기에 끌어다 놓으세요</p>
           <p className="mt-1 text-sm text-slate-500">또는 아래에서 파일을 선택하세요. 텍스트가 포함된 첫 페이지를 기준으로 분석합니다.</p>
-          <Input type="file" accept="application/pdf,.pdf" className="mx-auto mt-4 max-w-md cursor-pointer bg-white" disabled={analyzing} aria-label="공사일보 PDF 파일 선택" onChange={(event) => { void handleFile(event.target.files?.[0] ?? null); event.currentTarget.value = ""; }} />
+          <span className="mt-4 inline-flex min-h-10 items-center rounded-md border border-cyan-300 bg-white px-4 text-sm font-medium text-cyan-800 shadow-sm">PDF 파일 선택</span>
           {analyzing && <p className="mt-3 inline-flex items-center gap-2 text-sm text-cyan-700"><LoaderCircle className="size-4 animate-spin" />분석 중입니다...</p>}
           {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
         </div>}
