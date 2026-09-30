@@ -28,7 +28,6 @@ export type DailyReportExtraction = {
   reportDate: string;
   primaryWork: string;
   todayWork: string;
-  issuesAndConsultations: string;
   nextWork: string;
   laborCandidates: DailyReportLaborCandidate[];
   warnings: string[];

@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Textarea } from "@/components/ui/textarea";
 import { extractDailyReport } from "@/lib/daily-report";
 import { CONTRACTOR_TYPE_LABELS, formatWon, type LaborRow } from "@/lib/labor";
 import type { DailyReportCandidateAction, DailyReportExtraction } from "@/types/daily-report";
@@ -111,7 +110,6 @@ export function DailyReportImportDialog({ open, onOpenChange, existingRows, onAp
             <div className="space-y-2"><Label>작성일자</Label><Input type="date" value={extraction.reportDate} onChange={(event) => patchExtraction({ reportDate: event.target.value, laborCandidates: extraction.laborCandidates.map((candidate) => ({ ...candidate, workDate: event.target.value })) })} /></div>
             <div className="space-y-2"><Label>공사 시작일</Label><Input type="date" value={extraction.startDate} onChange={(event) => patchExtraction({ startDate: event.target.value })} /></div>
             <div className="space-y-2"><Label>공사 종료일</Label><Input type="date" value={extraction.endDate} onChange={(event) => patchExtraction({ endDate: event.target.value })} /></div>
-            <div className="space-y-2 md:col-span-2"><Label>이슈 및 협의사항</Label><Textarea className="min-h-32" value={extraction.issuesAndConsultations} onChange={(event) => patchExtraction({ issuesAndConsultations: event.target.value, laborCandidates: extraction.laborCandidates.map((candidate) => ({ ...candidate, description: event.target.value || "이슈 및 협의사항 없음" })) })} /></div>
           </div>
 
           {extraction.warnings.length > 0 && <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"><div className="flex gap-2"><AlertTriangle className="mt-0.5 size-4 shrink-0" /><ul className="space-y-1">{extraction.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></div></div>}

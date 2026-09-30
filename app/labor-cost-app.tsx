@@ -89,7 +89,7 @@ function newRow(workSite = "DS기흥"): LaborRow {
   const date = today();
   return {
     id: crypto.randomUUID(),
-    description: "이슈 및 협의사항 없음",
+    description: "투입 내역",
     workSite,
     workDate: date,
     dayType: dayTypeFromDate(date),
@@ -274,10 +274,10 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
     setRows((current) => {
       const isInitialPlaceholder = current.length === 1 && !sourceGroupId
         && current[0].contractorType === "self" && [0, DEFAULT_RATES.baseRate].includes(current[0].contractorQuoteAmount)
-        && current[0].description === "이슈 및 협의사항 없음";
+        && current[0].description === "투입 내역";
       const hasImportedLabor = importPlan.externalCandidates.length > 0 || importPlan.internalCandidates.length > 0;
       const next = isInitialPlaceholder && hasImportedLabor ? [] : current.map((row) => isInitialPlaceholder && extraction.reportDate
-        ? { ...row, workDate: extraction.reportDate, dayType: dayTypeFromDate(extraction.reportDate), description: extraction.issuesAndConsultations || "이슈 및 협의사항 없음" }
+        ? { ...row, workDate: extraction.reportDate, dayType: dayTypeFromDate(extraction.reportDate), description: "공사일보 투입" }
         : row);
       for (const candidate of importPlan.externalCandidates) {
         const action = actions[candidate.id] ?? "exclude";
@@ -303,7 +303,7 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
           applyOverhead: false, additionalCost: 0,
         });
       }
-      if (next.length === 0) next.push({ ...newRow(extraction.inferredSiteName || workSite), workDate: extraction.reportDate || today(), dayType: dayTypeFromDate(extraction.reportDate || today()), description: extraction.issuesAndConsultations || "이슈 및 협의사항 없음" });
+      if (next.length === 0) next.push({ ...newRow(extraction.inferredSiteName || workSite), workDate: extraction.reportDate || today(), dayType: dayTypeFromDate(extraction.reportDate || today()), description: "공사일보 투입" });
       return sortRowsByDate(next);
     });
     setDailyReportOpen(false);
@@ -501,9 +501,9 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
       ["노무비 집행률", quotedLaborAmount > 0 ? `${executionRate.toFixed(1)}%` : "미입력"],
       ["잔여 노무비", quotedLaborAmount > 0 ? remainingLaborAmount : "미입력"],
       [],
-      ["투입일자", "이슈 및 협의사항", "투입구분", "업체명", "기본 일당", "업체별 가산", "추가 비용", "근무구분", "인원", "일수", "계산 노무비"],
+      ["투입일자", "투입구분", "업체명", "기본 일당", "업체별 가산", "추가 비용", "근무구분", "인원", "일수", "계산 노무비"],
       ...result.rows.map((row) => [
-        row.workDate, row.description, CONTRACTOR_TYPE_LABELS[row.contractorType],
+        row.workDate, CONTRACTOR_TYPE_LABELS[row.contractorType],
         row.contractorType === "self" ? "외부업체 없음" : row.contractorName,
         row.baseAmount, contractorCostPolicy(row).label, row.additionalCost, DAY_TYPE_LABELS[row.dayType], row.headcount, row.days, row.totalAmount,
       ]),
@@ -607,12 +607,11 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
               </CardHeader>
               <CardContent className="p-0">
                 <Table>
-                  <TableHeader><TableRow className="bg-slate-50"><TableHead className="min-w-[215px] pl-5">투입일자</TableHead><TableHead className="min-w-[240px]">이슈 및 협의사항</TableHead><TableHead className="min-w-[125px]">투입구분</TableHead><TableHead className="min-w-[125px]">업체명</TableHead><TableHead className="min-w-[125px]">기본 일당</TableHead><TableHead className="min-w-[160px] text-center">업체별 가산</TableHead><TableHead className="min-w-[120px]">추가 비용</TableHead><TableHead className="min-w-[100px]">근무구분</TableHead><TableHead className="min-w-[88px] text-center">인원</TableHead><TableHead className="min-w-[88px] text-center">일수</TableHead><TableHead className="min-w-[120px] text-right">계산 노무비</TableHead><TableHead className="w-12" /></TableRow></TableHeader>
+                  <TableHeader><TableRow className="bg-slate-50"><TableHead className="min-w-[215px] pl-5">투입일자</TableHead><TableHead className="min-w-[125px]">투입구분</TableHead><TableHead className="min-w-[125px]">업체명</TableHead><TableHead className="min-w-[125px]">기본 일당</TableHead><TableHead className="min-w-[160px] text-center">업체별 가산</TableHead><TableHead className="min-w-[120px]">추가 비용</TableHead><TableHead className="min-w-[100px]">근무구분</TableHead><TableHead className="min-w-[88px] text-center">인원</TableHead><TableHead className="min-w-[88px] text-center">일수</TableHead><TableHead className="min-w-[120px] text-right">계산 노무비</TableHead><TableHead className="w-12" /></TableRow></TableHeader>
                   <TableBody>
                     {result.rows.map((row) => (
                       <TableRow key={row.id}>
                         <TableCell className="pl-5"><div className="flex items-center gap-2"><Input type="date" value={row.workDate} onChange={(event) => { const workDate = event.target.value; updateRow(row.id, { workDate, dayType: dayTypeFromDate(workDate) }); }} aria-label="투입일자" className={row.dayType === "holiday" ? "text-red-600" : row.dayType === "saturday" ? "text-blue-600" : ""} /><span className={`w-5 shrink-0 text-sm font-semibold ${row.dayType === "holiday" ? "text-red-600" : row.dayType === "saturday" ? "text-blue-600" : "text-slate-500"}`}>{weekdayLabel(row.workDate)}</span><Button type="button" variant="outline" size="icon-sm" onClick={() => addRowForDate(row)} aria-label={`${row.workDate}에 작업행 추가`} title="같은 날짜에 작업행 추가"><Plus className="size-4" /></Button></div></TableCell>
-                        <TableCell><Textarea value={row.description} onChange={(event) => updateRow(row.id, { description: event.target.value })} placeholder="이슈 및 협의사항을 입력하세요." aria-label="이슈 및 협의사항" className="min-h-16 min-w-[300px] resize-y" /></TableCell>
                         <TableCell>
                           <Select value={row.contractorType} onValueChange={(value) => {
                             const contractorType = value as ContractorType;
