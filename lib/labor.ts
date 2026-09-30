@@ -71,6 +71,7 @@ export const DAY_TYPE_LABELS: Record<DayType, string> = {
 
 export function contractorCostPolicy(row: Pick<LaborRow, "contractorType" | "applyOverhead" | "useBaseRate">, rates = DEFAULT_RATES) {
   if (row.useBaseRate === false) return { adminRate: 0, toolRate: 0, mealRate: 0, automatic: false, label: "직접입력" };
+  if (row.contractorType === "self") return { adminRate: 0, toolRate: 0, mealRate: 0, automatic: true, label: "30만원 고정" };
   if (row.contractorType === "vsent") return { adminRate: 15, toolRate: 0, mealRate: 0, automatic: true, label: "관리비 15%" };
   if (row.contractorType === "rta") return { adminRate: 10, toolRate: 3, mealRate: 0, automatic: true, label: "관리비 10% + 공구 3%" };
   if (row.contractorType === "coreworker") return { adminRate: 10, toolRate: 3, mealRate: 10_000, automatic: true, label: "관리비 10% + 공구 3% + 식대 1만원" };
@@ -184,7 +185,7 @@ export function calculateRow(row: LaborRow, rates = DEFAULT_RATES) {
   const adminAmount = Math.round(baseAmount * (policy.adminRate / 100));
   const toolAmount = Math.round(baseAmount * (policy.toolRate / 100));
   const mealAmount = Math.round(units * policy.mealRate);
-  const daySurcharge = row.dayType === "holiday"
+  const daySurcharge = row.contractorType === "self" ? 0 : row.dayType === "holiday"
     ? rates.holidaySurcharge
     : row.dayType === "saturday"
       ? rates.saturdaySurcharge
