@@ -89,7 +89,7 @@ function newRow(workSite = "DS기흥"): LaborRow {
   const date = today();
   return {
     id: crypto.randomUUID(),
-    description: "장비 설치 및 셋업",
+    description: "이슈 및 협의사항 없음",
     workSite,
     workDate: date,
     dayType: dayTypeFromDate(date),
@@ -100,6 +100,8 @@ function newRow(workSite = "DS기흥"): LaborRow {
     contractorQuoteAmount: DEFAULT_RATES.baseRate,
     applyOverhead: false,
     additionalCost: 0,
+    useBaseRate: true,
+    manualLaborAmount: 0,
   };
 }
 
@@ -272,10 +274,10 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
     setRows((current) => {
       const isInitialPlaceholder = current.length === 1 && !sourceGroupId
         && current[0].contractorType === "self" && [0, DEFAULT_RATES.baseRate].includes(current[0].contractorQuoteAmount)
-        && current[0].description === "장비 설치 및 셋업";
+        && current[0].description === "이슈 및 협의사항 없음";
       const hasImportedLabor = importPlan.externalCandidates.length > 0 || importPlan.internalCandidates.length > 0;
       const next = isInitialPlaceholder && hasImportedLabor ? [] : current.map((row) => isInitialPlaceholder && extraction.reportDate
-        ? { ...row, workDate: extraction.reportDate, dayType: dayTypeFromDate(extraction.reportDate), description: extraction.todayWork || row.description }
+        ? { ...row, workDate: extraction.reportDate, dayType: dayTypeFromDate(extraction.reportDate), description: extraction.issuesAndConsultations || "이슈 및 협의사항 없음" }
         : row);
       for (const candidate of importPlan.externalCandidates) {
         const action = actions[candidate.id] ?? "exclude";
@@ -301,7 +303,7 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
           applyOverhead: false, additionalCost: 0,
         });
       }
-      if (next.length === 0) next.push({ ...newRow(extraction.inferredSiteName || workSite), workDate: extraction.reportDate || today(), dayType: dayTypeFromDate(extraction.reportDate || today()), description: extraction.todayWork || "공사일보 작업" });
+      if (next.length === 0) next.push({ ...newRow(extraction.inferredSiteName || workSite), workDate: extraction.reportDate || today(), dayType: dayTypeFromDate(extraction.reportDate || today()), description: extraction.issuesAndConsultations || "이슈 및 협의사항 없음" });
       return sortRowsByDate(next);
     });
     setDailyReportOpen(false);
@@ -499,7 +501,7 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
       ["노무비 집행률", quotedLaborAmount > 0 ? `${executionRate.toFixed(1)}%` : "미입력"],
       ["잔여 노무비", quotedLaborAmount > 0 ? remainingLaborAmount : "미입력"],
       [],
-      ["투입일자", "작업내용", "투입구분", "업체명", "기본 일당", "업체별 가산", "추가 비용", "근무구분", "인원", "일수", "계산 노무비"],
+      ["투입일자", "이슈 및 협의사항", "투입구분", "업체명", "기본 일당", "업체별 가산", "추가 비용", "근무구분", "인원", "일수", "계산 노무비"],
       ...result.rows.map((row) => [
         row.workDate, row.description, CONTRACTOR_TYPE_LABELS[row.contractorType],
         row.contractorType === "self" ? "외부업체 없음" : row.contractorName,
@@ -583,6 +585,10 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
                   <div className="space-y-2"><Label htmlFor="quotedLaborAmount">견적서상 노무비 합계</Label><Input id="quotedLaborAmount" type="number" min="0" step="10000" value={quotedLaborAmount} onChange={(event) => setQuotedLaborAmount(Number(event.target.value))} /><p className="text-xs text-slate-500">PDF에서 자동 입력되며 필요하면 직접 수정할 수 있습니다.</p>{quoteExtraction && <div className={`rounded-lg px-3 py-2 text-xs ${quoteExtraction.matches.length ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800"}`}>{quoteExtraction.matches.length ? `총 ${quoteExtraction.pageCount}페이지 중 직접비계 노무비 ${quoteExtraction.matches.length}건 발견 · ${quoteExtraction.matches.map((match) => `${match.page}페이지 ${formatWon(match.amount)}`).join(" + ")} = ${formatWon(quoteExtraction.total)}` : `총 ${quoteExtraction.pageCount}페이지에서 직접비계 노무비를 찾지 못했습니다.`}</div>}</div>
                   <div className="space-y-2"><Label htmlFor="quoteFile">견적서 PDF 첨부</Label><Input id="quoteFile" type="file" accept="application/pdf,.pdf" disabled={extractingQuote} onChange={(event) => void handleQuoteFile(event.target.files?.[0] ?? null)} /><div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">{extractingQuote ? <span className="text-cyan-700">직접비계 노무비를 분석하고 있습니다...</span> : pendingQuoteFile ? <span><Paperclip className="mr-1 inline size-3.5" />저장 예정: {pendingQuoteFile.name}</span> : quoteFileKey ? <a href={`/api/quote-files?key=${encodeURIComponent(quoteFileKey)}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-cyan-700 hover:underline"><ExternalLink className="size-3.5" />{quoteFileName || "첨부 견적서 열기"}</a> : <span>PDF 파일은 10MB 이하만 첨부할 수 있습니다.</span>}{(pendingQuoteFile || quoteFileKey) && <button type="button" onClick={() => { setPendingQuoteFile(null); setQuoteFileKey(""); setQuoteFileName(""); setQuoteFileSize(0); setQuoteExtraction(null); }} className="text-slate-500 underline">첨부 해제</button>}</div></div>
                 </div>
+                <div className="rounded-xl border border-cyan-200 bg-white p-4">
+                  <div className="flex items-center justify-between gap-3"><div><p className="text-sm font-semibold">업체 노무비 직접입력</p><p className="mt-1 text-xs text-slate-500">업체명과 총 노무비를 입력하면 실제 투입 노무비에 바로 합산됩니다.</p></div><Button type="button" variant="outline" size="sm" onClick={() => setRows((current) => [...current, { ...newRow(workSite), description: "업체 노무비 직접입력", contractorType: "direct", contractorName: "", headcount: 1, days: 1, useBaseRate: false, manualLaborAmount: 0 }])}><Plus /> 업체 추가</Button></div>
+                  <div className="mt-3 space-y-2">{rows.filter((row) => row.useBaseRate === false).length === 0 ? <p className="rounded-lg bg-slate-50 px-3 py-3 text-sm text-slate-500">직접 입력한 업체 노무비가 없습니다.</p> : rows.filter((row) => row.useBaseRate === false).map((row) => <div key={row.id} className="grid gap-2 sm:grid-cols-[1fr_180px_auto]"><Input value={row.contractorName} onChange={(event) => updateRow(row.id, { contractorName: event.target.value })} placeholder="업체명" aria-label="직접입력 업체명" /><Input type="number" min="0" step="10000" value={row.manualLaborAmount ?? 0} onChange={(event) => updateRow(row.id, { manualLaborAmount: Number(event.target.value) })} placeholder="업체 노무비" aria-label="직접입력 업체 노무비" /><Button type="button" variant="ghost" size="icon-sm" aria-label="직접입력 업체 삭제" onClick={() => setRows((current) => current.filter((item) => item.id !== row.id))}><Trash2 className="text-slate-500" /></Button></div>)}</div>
+                </div>
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                   <CostMetric label="견적서 노무비" value={quotedLaborAmount > 0 ? formatWon(quotedLaborAmount) : "미입력"} />
                   <CostMetric label="실제 투입 노무비" value={formatWon(result.grandTotal)} />
@@ -601,12 +607,12 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
               </CardHeader>
               <CardContent className="p-0">
                 <Table>
-                  <TableHeader><TableRow className="bg-slate-50"><TableHead className="min-w-[215px] pl-5">투입일자</TableHead><TableHead className="min-w-[240px]">작업내용</TableHead><TableHead className="min-w-[125px]">투입구분</TableHead><TableHead className="min-w-[125px]">업체명</TableHead><TableHead className="min-w-[125px]">기본 일당</TableHead><TableHead className="min-w-[160px] text-center">업체별 가산</TableHead><TableHead className="min-w-[120px]">추가 비용</TableHead><TableHead className="min-w-[100px]">근무구분</TableHead><TableHead className="min-w-[88px] text-center">인원</TableHead><TableHead className="min-w-[88px] text-center">일수</TableHead><TableHead className="min-w-[120px] text-right">계산 노무비</TableHead><TableHead className="w-12" /></TableRow></TableHeader>
+                  <TableHeader><TableRow className="bg-slate-50"><TableHead className="min-w-[215px] pl-5">투입일자</TableHead><TableHead className="min-w-[240px]">이슈 및 협의사항</TableHead><TableHead className="min-w-[125px]">투입구분</TableHead><TableHead className="min-w-[125px]">업체명</TableHead><TableHead className="min-w-[125px]">기본 일당</TableHead><TableHead className="min-w-[160px] text-center">업체별 가산</TableHead><TableHead className="min-w-[120px]">추가 비용</TableHead><TableHead className="min-w-[100px]">근무구분</TableHead><TableHead className="min-w-[88px] text-center">인원</TableHead><TableHead className="min-w-[88px] text-center">일수</TableHead><TableHead className="min-w-[120px] text-right">계산 노무비</TableHead><TableHead className="w-12" /></TableRow></TableHeader>
                   <TableBody>
                     {result.rows.map((row) => (
                       <TableRow key={row.id}>
                         <TableCell className="pl-5"><div className="flex items-center gap-2"><Input type="date" value={row.workDate} onChange={(event) => { const workDate = event.target.value; updateRow(row.id, { workDate, dayType: dayTypeFromDate(workDate) }); }} aria-label="투입일자" className={row.dayType === "holiday" ? "text-red-600" : row.dayType === "saturday" ? "text-blue-600" : ""} /><span className={`w-5 shrink-0 text-sm font-semibold ${row.dayType === "holiday" ? "text-red-600" : row.dayType === "saturday" ? "text-blue-600" : "text-slate-500"}`}>{weekdayLabel(row.workDate)}</span><Button type="button" variant="outline" size="icon-sm" onClick={() => addRowForDate(row)} aria-label={`${row.workDate}에 작업행 추가`} title="같은 날짜에 작업행 추가"><Plus className="size-4" /></Button></div></TableCell>
-                        <TableCell><Textarea value={row.description} onChange={(event) => updateRow(row.id, { description: event.target.value })} placeholder="작업내용을 상세히 입력하세요." aria-label="작업내용" className="min-h-16 min-w-[300px] resize-y" /></TableCell>
+                        <TableCell><Textarea value={row.description} onChange={(event) => updateRow(row.id, { description: event.target.value })} placeholder="이슈 및 협의사항을 입력하세요." aria-label="이슈 및 협의사항" className="min-h-16 min-w-[300px] resize-y" /></TableCell>
                         <TableCell>
                           <Select value={row.contractorType} onValueChange={(value) => {
                             const contractorType = value as ContractorType;
@@ -618,7 +624,7 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
                           </Select>
                         </TableCell>
                         <TableCell>{row.contractorType === "self" ? <span className="text-sm font-medium text-cyan-700">공무기술팀</span> : row.contractorType === "direct" ? <Input value={row.contractorName} onChange={(event) => updateRow(row.id, { contractorName: event.target.value })} placeholder="업체명 입력" aria-label="업체명" /> : <span className="text-sm text-slate-700">{row.contractorName}</span>}</TableCell>
-                        <TableCell><Input type="number" value={DEFAULT_RATES.baseRate} disabled aria-label="기본 일당" /></TableCell>
+                        <TableCell><label className="flex items-center gap-2 text-xs"><Checkbox checked={row.useBaseRate !== false} onCheckedChange={(checked) => updateRow(row.id, { useBaseRate: checked === true })} aria-label="기본일당 적용" /><span>{row.useBaseRate === false ? "제외" : formatWon(DEFAULT_RATES.baseRate)}</span></label></TableCell>
                         <TableCell><div className="flex justify-center"><Checkbox checked={contractorCostPolicy(row).automatic || row.applyOverhead} disabled={contractorCostPolicy(row).automatic} onCheckedChange={(checked) => updateRow(row.id, { applyOverhead: checked === true })} aria-label="업체별 가산 적용" /></div><p className="mt-1 text-center text-xs leading-4 text-slate-500">{contractorCostPolicy(row).label}</p></TableCell>
                         <TableCell><Input type="number" min="0" step="10000" value={row.additionalCost} onChange={(event) => updateRow(row.id, { additionalCost: Number(event.target.value) })} aria-label="행 추가 비용" /></TableCell>
                         <TableCell>

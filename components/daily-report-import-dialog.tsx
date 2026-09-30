@@ -111,8 +111,7 @@ export function DailyReportImportDialog({ open, onOpenChange, existingRows, onAp
             <div className="space-y-2"><Label>작성일자</Label><Input type="date" value={extraction.reportDate} onChange={(event) => patchExtraction({ reportDate: event.target.value, laborCandidates: extraction.laborCandidates.map((candidate) => ({ ...candidate, workDate: event.target.value })) })} /></div>
             <div className="space-y-2"><Label>공사 시작일</Label><Input type="date" value={extraction.startDate} onChange={(event) => patchExtraction({ startDate: event.target.value })} /></div>
             <div className="space-y-2"><Label>공사 종료일</Label><Input type="date" value={extraction.endDate} onChange={(event) => patchExtraction({ endDate: event.target.value })} /></div>
-            <div className="space-y-2 md:col-span-2"><Label>금일 작업 내용</Label><Textarea className="min-h-32" value={extraction.todayWork} onChange={(event) => patchExtraction({ todayWork: event.target.value, laborCandidates: extraction.laborCandidates.map((candidate) => ({ ...candidate, description: event.target.value })) })} /></div>
-            {extraction.nextWork && <div className="space-y-2 md:col-span-2"><Label>다음 작업 현황 · 참고</Label><Textarea readOnly className="min-h-20 bg-slate-50" value={extraction.nextWork} /></div>}
+            <div className="space-y-2 md:col-span-2"><Label>이슈 및 협의사항</Label><Textarea className="min-h-32" value={extraction.issuesAndConsultations} onChange={(event) => patchExtraction({ issuesAndConsultations: event.target.value, laborCandidates: extraction.laborCandidates.map((candidate) => ({ ...candidate, description: event.target.value || "이슈 및 협의사항 없음" })) })} /></div>
           </div>
 
           {extraction.warnings.length > 0 && <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"><div className="flex gap-2"><AlertTriangle className="mt-0.5 size-4 shrink-0" /><ul className="space-y-1">{extraction.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></div></div>}
@@ -136,7 +135,7 @@ export function DailyReportImportDialog({ open, onOpenChange, existingRows, onAp
         <DialogFooter>
           <Button variant="outline" onClick={() => handleOpenChange(false)}>취소</Button>
           {extraction && <Button variant="outline" onClick={() => { setExtraction(null); setActions({}); }}>다른 PDF 선택</Button>}
-          <Button disabled={!extraction || applicableCount === 0 || analyzing || !extraction.reportDate || !extraction.todayWork.trim()} onClick={() => extraction && onApply({ extraction, actions })}>투입 계획에 적용 ({applicableCount}건)</Button>
+          <Button disabled={!extraction || applicableCount === 0 || analyzing || !extraction.reportDate} onClick={() => extraction && onApply({ extraction, actions })}>투입 계획에 적용 ({applicableCount}건)</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

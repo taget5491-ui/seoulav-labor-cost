@@ -14,6 +14,8 @@ export type LaborRow = {
   contractorQuoteAmount: number;
   applyOverhead: boolean;
   additionalCost: number;
+  useBaseRate?: boolean;
+  manualLaborAmount?: number;
 };
 
 export type LaborRates = {
@@ -67,7 +69,8 @@ export const DAY_TYPE_LABELS: Record<DayType, string> = {
   holiday: "휴일",
 };
 
-export function contractorCostPolicy(row: Pick<LaborRow, "contractorType" | "applyOverhead">, rates = DEFAULT_RATES) {
+export function contractorCostPolicy(row: Pick<LaborRow, "contractorType" | "applyOverhead" | "useBaseRate">, rates = DEFAULT_RATES) {
+  if (row.useBaseRate === false) return { adminRate: 0, toolRate: 0, mealRate: 0, automatic: false, label: "직접입력" };
   if (row.contractorType === "vsent") return { adminRate: 15, toolRate: 0, mealRate: 0, automatic: true, label: "관리비 15%" };
   if (row.contractorType === "rta") return { adminRate: 10, toolRate: 3, mealRate: 0, automatic: true, label: "관리비 10% + 공구 3%" };
   if (row.contractorType === "coreworker") return { adminRate: 10, toolRate: 3, mealRate: 10_000, automatic: true, label: "관리비 10% + 공구 3% + 식대 1만원" };
@@ -172,9 +175,11 @@ export function dayTypeFromDate(date: string): DayType {
 export function calculateRow(row: LaborRow, rates = DEFAULT_RATES) {
   const headcount = Math.max(0, Number(row.headcount) || 0);
   const days = Math.max(0, Number(row.days) || 0);
-  const units = headcount * days;
+  const useBaseRate = row.useBaseRate !== false;
+  const units = useBaseRate ? headcount * days : 0;
   const contractorQuoteAmount = Math.max(0, Math.round(Number(row.contractorQuoteAmount) || 0));
-  const baseAmount = Math.round(units * rates.baseRate);
+  const manualLaborAmount = Math.max(0, Math.round(Number(row.manualLaborAmount) || 0));
+  const baseAmount = useBaseRate ? Math.round(units * rates.baseRate) : manualLaborAmount;
   const policy = contractorCostPolicy(row, rates);
   const adminAmount = Math.round(baseAmount * (policy.adminRate / 100));
   const toolAmount = Math.round(baseAmount * (policy.toolRate / 100));
@@ -196,6 +201,8 @@ export function calculateRow(row: LaborRow, rates = DEFAULT_RATES) {
     mealAmount,
     surchargeAmount,
     additionalCost,
+    useBaseRate,
+    manualLaborAmount,
     totalAmount: baseAmount + adminAmount + toolAmount + mealAmount + surchargeAmount + additionalCost,
     contractorQuoteAmount,
   };

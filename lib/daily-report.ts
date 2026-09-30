@@ -113,11 +113,12 @@ export function parseDailyReport(items: PositionedPdfText[], pageWidth: number):
   const firstCompanyRowY = lines.filter((line) => line.y < workHeaderY && compact(line.text).includes("업체명")).sort((a, b) => b.y - a.y)[0]?.y ?? -Infinity;
   const todayWork = sectionText(lines, "금일 작업 현황", firstCompanyRowY, "left", pageWidth) || primaryWork;
   const nextWork = sectionText(lines, "다음 작업 현황", firstCompanyRowY, "right", pageWidth);
-  const laborCandidates = extractLaborCandidates(lines, pageWidth, reportDate, todayWork || primaryWork || "공사일보 작업");
+  const issuesAndConsultations = sectionText(lines, "이슈 및 협의사항", Number.NEGATIVE_INFINITY, "left", pageWidth);
+  const laborCandidates = extractLaborCandidates(lines, pageWidth, reportDate, issuesAndConsultations || "이슈 및 협의사항 없음");
 
   if (!projectName) warnings.push("공사명을 찾지 못했습니다.");
   if (!reportDate) warnings.push("작성일자를 찾지 못했습니다.");
-  if (!todayWork) warnings.push("금일 작업 내용을 찾지 못했습니다.");
+  if (!issuesAndConsultations) warnings.push("이슈 및 협의사항을 찾지 못했습니다.");
   if (!laborCandidates.length) warnings.push("주간 투입 업체와 인원을 찾지 못했습니다.");
   if (laborCandidates.some((candidate) => candidate.shift === "night")) warnings.push("야간 투입 인원이 있습니다. 현재 모델에는 야간 구분이 없어 자동 적용할 수 없습니다.");
 
@@ -129,6 +130,7 @@ export function parseDailyReport(items: PositionedPdfText[], pageWidth: number):
     reportDate,
     primaryWork,
     todayWork,
+    issuesAndConsultations,
     nextWork,
     laborCandidates,
     warnings,
