@@ -2,7 +2,7 @@
 /* eslint-disable @next/next/no-html-link-for-pages */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Archive, Calculator, CalendarDays, Download, ExternalLink, FileClock, FileInput, FileText, History, LayoutDashboard, Lock, Paperclip, Plus, Printer, RotateCcw, Save, Search, Trash2, Users } from "lucide-react";
+import { Archive, Calculator, CalendarDays, Download, ExternalLink, FileClock, FileInput, FilePenLine, FileText, History, LayoutDashboard, Lock, Paperclip, Plus, Printer, RotateCcw, Save, Search, Trash2, Users } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -364,6 +364,12 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
     toast.info(`v${estimate.version} 견적을 불러왔습니다.`);
   }
 
+  function editClosedEstimate(estimate: SavedEstimate) {
+    openEstimate(estimate);
+    setAllowLockedRevision(true);
+    toast.info("종료 상태를 유지한 채 수정할 수 있습니다. 저장하면 새 버전으로 기록됩니다.");
+  }
+
   async function handleQuoteFile(file: File | null) {
     setPendingQuoteFile(file);
     setQuoteExtraction(null);
@@ -550,7 +556,7 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
             <Button variant="outline" onClick={resetForm}><RotateCcw /> 새로 작성</Button>
             <Button variant="outline" onClick={exportExcel}><Download /> 엑셀 내보내기</Button>
             <Button variant="outline" onClick={() => window.print()}><Printer /> PDF 출력</Button>
-            {isLocked && <Button variant="outline" onClick={() => { setAllowLockedRevision(true); setStatus("draft"); toast.info("수정본 작성 상태로 전환했습니다."); }}><Lock /> 수정본 만들기</Button>}
+            {isLocked && <Button variant="outline" onClick={() => { setAllowLockedRevision(true); if (status === "confirmed") setStatus("draft"); toast.info(status === "closed" ? "종료 상태를 유지한 채 수정할 수 있습니다." : "수정본 작성 상태로 전환했습니다."); }}><Lock /> {status === "closed" ? "종료 공사 수정" : "수정본 만들기"}</Button>}
             <Button onClick={saveEstimate} disabled={saving || extractingQuote || isLocked} className="bg-cyan-600 hover:bg-cyan-700"><Save /> {saving ? "저장 중" : extractingQuote ? "PDF 분석 중" : isLocked ? "확정 잠금" : "견적 저장"}</Button>
           </div>
         </div>
@@ -559,7 +565,7 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
 
         <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_300px] xl:gap-6 2xl:grid-cols-[minmax(0,1fr)_320px] 2xl:gap-8">
           <fieldset disabled={isLocked} className="min-w-0 space-y-5 disabled:opacity-90">
-            {isLocked && <div className="no-print rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">확정 또는 종료된 견적은 잠금 상태입니다. 변경하려면 상단의 수정본 만들기를 선택하세요.</div>}
+            {isLocked && <div className="no-print rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{status === "closed" ? "종료된 공사입니다. 상단의 ‘종료 공사 수정’을 누르면 종료 상태를 유지하면서 수정할 수 있습니다." : "확정된 견적은 잠금 상태입니다. 변경하려면 상단의 수정본 만들기를 선택하세요."}</div>}
             <Card className="border-slate-200 shadow-sm">
               <CardHeader className="border-b border-slate-100"><CardTitle className="text-base">공사 정보</CardTitle></CardHeader>
               <CardContent className="grid gap-4 pt-5 md:grid-cols-2 xl:grid-cols-4">
@@ -703,7 +709,7 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
                   {estimate.quotedLaborAmount > 0 && <div className="mt-3 grid grid-cols-2 gap-2 rounded-lg bg-slate-50 p-2 text-xs"><div><p className="text-slate-400">집행률</p><p className={`mt-0.5 font-medium ${estimate.totalAmount > estimate.quotedLaborAmount ? "text-red-600" : "text-cyan-700"}`}>{((estimate.totalAmount / estimate.quotedLaborAmount) * 100).toFixed(1)}%</p></div><div><p className="text-slate-400">{estimate.totalAmount > estimate.quotedLaborAmount ? "초과 금액" : "잔여 금액"}</p><p className={`mt-0.5 font-medium tabular-nums ${estimate.totalAmount > estimate.quotedLaborAmount ? "text-red-600" : "text-emerald-700"}`}>{formatWon(Math.abs(estimate.quotedLaborAmount - estimate.totalAmount))}</p></div></div>}
                   <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-100 pt-3">
                     <div className="flex min-w-0 items-center gap-1"><History className="size-3.5 shrink-0 text-slate-400" />{(estimate.history || []).slice(0, 4).map((version) => <button key={version.id} onClick={() => void openVersion(version.id)} className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600 hover:bg-cyan-100">v{version.version}</button>)}</div>
-                    <Button variant="ghost" size="sm" onClick={() => void changeArchive(estimate)}><Archive />{estimate.archivedAt ? "복원" : "보관"}</Button>
+                    <div className="flex items-center gap-1">{estimate.status === "closed" && !estimate.archivedAt && <Button variant="outline" size="sm" onClick={() => editClosedEstimate(estimate)}><FilePenLine />수정</Button>}<Button variant="ghost" size="sm" onClick={() => void changeArchive(estimate)}><Archive />{estimate.archivedAt ? "복원" : "보관"}</Button></div>
                   </div>
                 </div>
               ))}
