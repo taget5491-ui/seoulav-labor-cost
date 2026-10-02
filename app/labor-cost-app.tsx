@@ -154,6 +154,7 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
 
   const isLocked = Boolean(sourceGroupId && ["confirmed", "closed"].includes(status) && !allowLockedRevision);
   const filteredSaved = useMemo(() => saved.filter((estimate) => {
+    if (estimate.status === "closed") return false;
     if (!includeArchived && estimate.archivedAt) return false;
     if (statusFilter !== "all" && estimate.status !== statusFilter) return false;
     if (siteFilter !== "all" && (estimate.siteName || estimate.entries[0]?.workSite) !== siteFilter) return false;
@@ -167,7 +168,11 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
   const monthlyCompanyTotals = useMemo(() => summarizeEstimates(monthlySaved, (estimate) => estimate.companyName || "미입력"), [monthlySaved]);
   const executionRate = quotedLaborAmount > 0 ? (result.grandTotal / quotedLaborAmount) * 100 : 0;
   const remainingLaborAmount = quotedLaborAmount - result.grandTotal;
-  const closedCostData = useMemo(() => saved.filter((estimate) => !estimate.archivedAt && estimate.status === "closed" && estimate.quotedLaborAmount > 0).slice(0, 8).map((estimate) => ({ name: estimate.projectName.length > 12 ? `${estimate.projectName.slice(0, 12)}…` : estimate.projectName, quoted: estimate.quotedLaborAmount, actual: estimate.totalAmount })), [saved]);
+  const closedCostData = useMemo(() => saved
+    .filter((estimate) => !estimate.archivedAt && estimate.status === "closed" && estimate.quotedLaborAmount > 0)
+    .sort((a, b) => estimateReferenceDate(b).localeCompare(estimateReferenceDate(a)))
+    .slice(0, 3)
+    .map((estimate) => ({ name: estimate.projectName.length > 12 ? `${estimate.projectName.slice(0, 12)}…` : estimate.projectName, quoted: estimate.quotedLaborAmount, actual: estimate.totalAmount })), [saved]);
 
   const loadSaved = useCallback(async () => {
     try {
@@ -711,7 +716,7 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
           <Card className="border-slate-200 shadow-sm">
             <CardContent className="grid gap-3 pt-5 md:grid-cols-2 xl:grid-cols-[minmax(240px,1fr)_170px_170px_170px_auto]">
               <div className="relative"><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" /><Input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="공사명, 사업장, 업체명, 담당자 검색" className="pl-9" /></div>
-              <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as "all" | EstimateStatus)}><SelectTrigger><SelectValue placeholder="상태 전체" /></SelectTrigger><SelectContent><SelectItem value="all">상태 전체</SelectItem>{Object.entries(STATUS_LABELS).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select>
+              <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as "all" | EstimateStatus)}><SelectTrigger><SelectValue placeholder="상태 전체" /></SelectTrigger><SelectContent><SelectItem value="all">상태 전체</SelectItem>{Object.entries(STATUS_LABELS).filter(([value]) => value !== "closed").map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select>
               <Select value={siteFilter} onValueChange={setSiteFilter}><SelectTrigger><SelectValue placeholder="사업장 전체" /></SelectTrigger><SelectContent><SelectItem value="all">사업장 전체</SelectItem>{WORK_SITES.map((site) => <SelectItem key={site} value={site}>{site}</SelectItem>)}</SelectContent></Select>
               <Input type="month" value={reportMonth} onChange={(event) => setReportMonth(event.target.value)} aria-label="집계 월" />
               <label className="flex min-h-10 items-center gap-2 whitespace-nowrap text-sm text-slate-600"><input type="checkbox" checked={includeArchived} onChange={(event) => setIncludeArchived(event.target.checked)} className="size-4 accent-cyan-600" />보관 포함</label>
@@ -729,7 +734,7 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
             <AggregateCard title="업체별 노무비" items={monthlyCompanyTotals} />
           </div>
 
-          {closedCostData.length > 0 && <Card className="border-slate-200 shadow-sm"><CardHeader><CardTitle className="text-base">종료 공사 견적 대비 실제 노무비</CardTitle><p className="text-sm text-slate-500">최근 종료 공사의 견적서 노무비와 실제 투입 노무비를 비교합니다.</p></CardHeader><CardContent><CostComparisonChart data={closedCostData} /></CardContent></Card>}
+          {closedCostData.length > 0 && <Card className="border-slate-200 shadow-sm"><CardHeader><CardTitle className="text-base">종료 공사 견적 대비 실제 노무비</CardTitle><p className="text-sm text-slate-500">기준일이 가장 최근인 종료 공사 3건만 표시합니다. 전체 종료 공사는 통합 대시보드에서 확인하세요.</p></CardHeader><CardContent><CostComparisonChart data={closedCostData} /></CardContent></Card>}
 
           {filteredSaved.length ? (
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
