@@ -464,6 +464,7 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
       toast.error("직접입력을 선택한 작업의 업체명을 입력해 주세요.");
       return;
     }
+    const isClosingProject = status === "closed";
 
     setSaving(true);
     try {
@@ -508,8 +509,14 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
       if (!response.ok) throw new Error(data.error || "저장에 실패했습니다.");
       setSourceGroupId(data.groupId ?? null);
       setAllowLockedRevision(false);
-      toast.success(`견적 v${data.version}을 저장했습니다.`);
       await loadSaved();
+      if (isClosingProject) {
+        resetForm();
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        toast.success(`공사를 종료하고 v${data.version}으로 저장했습니다. 새 공사를 작성할 수 있습니다.`);
+      } else {
+        toast.success(`견적 v${data.version}을 저장했습니다.`);
+      }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "견적을 저장하지 못했습니다.");
     } finally {
