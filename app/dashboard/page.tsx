@@ -39,6 +39,7 @@ export default async function DashboardPage() {
       applyOverhead: Boolean(entry.apply_overhead), additionalCost: Number(entry.additional_cost ?? 0),
       useBaseRate: entry.use_base_rate === undefined ? true : Boolean(entry.use_base_rate),
       manualLaborAmount: Number(entry.manual_labor_amount ?? 0),
+      baseRate: Number(entry.base_rate ?? 300000),
     })),
   }));
   return <LaborDashboard displayName={user.displayName} initialEstimates={initialEstimates} />;

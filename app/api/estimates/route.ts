@@ -21,6 +21,7 @@ const rowSchema = z.object({
   additionalCost: z.coerce.number().int().min(0).max(1_000_000_000).default(0),
   useBaseRate: z.boolean().default(true),
   manualLaborAmount: z.coerce.number().int().min(0).max(10_000_000_000).default(0),
+  baseRate: z.coerce.number().int().min(0).max(10_000_000).default(DEFAULT_RATES.baseRate),
 });
 const estimateSchema = z.object({
   projectName: z.string().trim().min(1).max(120),
@@ -70,6 +71,7 @@ function mapEntry(entry: DbRow) {
     additionalCost: Number(entry.additional_cost ?? 0),
     useBaseRate: entry.use_base_rate === undefined ? true : Boolean(entry.use_base_rate),
     manualLaborAmount: Number(entry.manual_labor_amount ?? 0),
+    baseRate: Number(entry.base_rate ?? DEFAULT_RATES.baseRate),
   };
 }
 
@@ -198,7 +200,7 @@ export async function POST(request: Request) {
           base_rate, admin_rate, tool_rate, day_surcharge, base_amount, admin_amount,
           tool_amount, surcharge_amount, total_amount, sort_order
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).bind(crypto.randomUUID(), id, row.description, input.siteName, row.workDate, row.dayType, row.headcount, row.days, row.contractorType, row.contractorType === "self" ? "" : row.contractorName, row.contractorQuoteAmount, row.applyOverhead ? 1 : 0, row.additionalCost, row.useBaseRate ? 1 : 0, row.manualLaborAmount, DEFAULT_RATES.baseRate, DEFAULT_RATES.adminRate, DEFAULT_RATES.toolRate, row.daySurcharge, row.baseAmount, row.adminAmount, row.toolAmount, row.surchargeAmount, row.totalAmount, index)),
+      ).bind(crypto.randomUUID(), id, row.description, input.siteName, row.workDate, row.dayType, row.headcount, row.days, row.contractorType, row.contractorType === "self" ? "" : row.contractorName, row.contractorQuoteAmount, row.applyOverhead ? 1 : 0, row.additionalCost, row.useBaseRate ? 1 : 0, row.manualLaborAmount, row.baseRate, DEFAULT_RATES.adminRate, DEFAULT_RATES.toolRate, row.daySurcharge, row.baseAmount, row.adminAmount, row.toolAmount, row.surchargeAmount, row.totalAmount, index)),
     ];
     await db.batch(statements);
     return Response.json({ id, groupId, version, totalAmount: calculation.grandTotal });

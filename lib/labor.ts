@@ -16,6 +16,7 @@ export type LaborRow = {
   additionalCost: number;
   useBaseRate?: boolean;
   manualLaborAmount?: number;
+  baseRate?: number;
 };
 
 export type LaborRates = {
@@ -35,6 +36,25 @@ export const DEFAULT_RATES: LaborRates = {
 };
 
 export const INTERNAL_LABOR_RATE = 300_000;
+export const SOUTHERN_SITE_DAILY_RATE = 350_000;
+
+const SOUTHERN_SITES = new Set(["DS평택", "DS천안", "DS온양", "SDI천안"]);
+const CUSTOM_RATE_SITES = new Set([...SOUTHERN_SITES, "사외"]);
+const CUSTOM_RATE_EXEMPT_COMPANIES = new Set(["에스큐브랩", "vsent", "일리스"]);
+
+function normalizedCompanyName(value: string) {
+  return value.toLowerCase().replace(/[\s().㈜주식회사-]/g, "");
+}
+
+export function requiresCustomDailyRate(workSite: string, contractorName: string) {
+  return CUSTOM_RATE_SITES.has(workSite) && Boolean(contractorName.trim()) && !CUSTOM_RATE_EXEMPT_COMPANIES.has(normalizedCompanyName(contractorName));
+}
+
+export function dailyRateForRow(row: Pick<LaborRow, "workSite" | "contractorType" | "baseRate">, rates = DEFAULT_RATES) {
+  if (row.contractorType === "self") return INTERNAL_LABOR_RATE;
+  if (SOUTHERN_SITES.has(row.workSite) && ["rta", "coreworker"].includes(row.contractorType)) return SOUTHERN_SITE_DAILY_RATE;
+  return Math.max(0, Math.round(Number(row.baseRate) || rates.baseRate));
+}
 
 export const CONTRACTOR_TYPE_LABELS: Record<ContractorType, string> = {
   self: "자체",
@@ -180,7 +200,8 @@ export function calculateRow(row: LaborRow, rates = DEFAULT_RATES) {
   const units = useBaseRate ? headcount * days : 0;
   const contractorQuoteAmount = Math.max(0, Math.round(Number(row.contractorQuoteAmount) || 0));
   const manualLaborAmount = Math.max(0, Math.round(Number(row.manualLaborAmount) || 0));
-  const baseAmount = useBaseRate ? Math.round(units * rates.baseRate) : manualLaborAmount;
+  const baseRate = dailyRateForRow(row, rates);
+  const baseAmount = useBaseRate ? Math.round(units * baseRate) : manualLaborAmount;
   const policy = contractorCostPolicy(row, rates);
   const adminAmount = Math.round(baseAmount * (policy.adminRate / 100));
   const toolAmount = Math.round(baseAmount * (policy.toolRate / 100));
@@ -204,6 +225,7 @@ export function calculateRow(row: LaborRow, rates = DEFAULT_RATES) {
     additionalCost,
     useBaseRate,
     manualLaborAmount,
+    baseRate,
     totalAmount: baseAmount + adminAmount + toolAmount + mealAmount + surchargeAmount + additionalCost,
     contractorQuoteAmount,
   };

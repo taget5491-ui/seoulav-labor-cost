@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { calculateRow, dayTypeFromDate, isKoreanPublicHoliday, weekdayLabel } from "../lib/labor.ts";
+import { calculateRow, dayTypeFromDate, isKoreanPublicHoliday, requiresCustomDailyRate, weekdayLabel } from "../lib/labor.ts";
 
 test("classifies Korean weekends and public holidays", () => {
   assert.equal(dayTypeFromDate("2026-08-05"), "weekday");
@@ -53,6 +53,34 @@ test("applies each contractor's automatic cost policy", () => {
   assert.equal(rta.totalAmount, 678_000);
   assert.equal(coreworker.mealAmount, 20_000);
   assert.equal(coreworker.totalAmount, 698_000);
+});
+
+test("uses 350,000 won for RTA and Coreworker at southern Samsung sites", () => {
+  const common = {
+    description: "설치", workSite: "DS평택", workDate: "2026-08-05", dayType: "weekday" as const,
+    headcount: 2, days: 1, contractorName: "", contractorQuoteAmount: 0,
+    applyOverhead: false, additionalCost: 0,
+  };
+  const rta = calculateRow({ ...common, id: "south-rta", contractorType: "rta" });
+  const coreworker = calculateRow({ ...common, id: "south-core", contractorType: "coreworker" });
+  assert.equal(rta.baseRate, 350_000);
+  assert.equal(rta.baseAmount, 700_000);
+  assert.equal(rta.totalAmount, 791_000);
+  assert.equal(coreworker.baseRate, 350_000);
+  assert.equal(coreworker.totalAmount, 811_000);
+});
+
+test("uses a custom entered rate for other companies and exempts named companies from prompting", () => {
+  const custom = calculateRow({
+    id: "custom", description: "설치", workSite: "사외", workDate: "2026-08-05", dayType: "weekday",
+    headcount: 2, days: 1, contractorType: "direct", contractorName: "협력사A", contractorQuoteAmount: 0,
+    applyOverhead: false, additionalCost: 0, baseRate: 420_000,
+  });
+  assert.equal(custom.baseAmount, 840_000);
+  assert.equal(requiresCustomDailyRate("DS천안", "협력사A"), true);
+  assert.equal(requiresCustomDailyRate("DS천안", "에스큐브랩"), false);
+  assert.equal(requiresCustomDailyRate("DS온양", "VSEnt"), false);
+  assert.equal(requiresCustomDailyRate("사외", "일리스"), false);
 });
 
 test("handles lunar holidays and Korean substitute-holiday rules", () => {

@@ -1,7 +1,7 @@
 "use client";
 /* eslint-disable @next/next/no-html-link-for-pages */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Archive, Calculator, CalendarDays, Download, ExternalLink, FileClock, FileInput, FilePenLine, FileText, History, LayoutDashboard, Lock, Paperclip, Plus, Printer, RotateCcw, Save, Search, Trash2, Users } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { toast } from "sonner";
@@ -22,11 +22,13 @@ import {
   calculateEstimate,
   CONTRACTOR_TYPE_LABELS,
   contractorCostPolicy,
+  dailyRateForRow,
   dayTypeFromDate,
   DAY_TYPE_LABELS,
   DEFAULT_RATES,
   formatWon,
   INTERNAL_LABOR_RATE,
+  requiresCustomDailyRate,
   weekdayLabel,
   WORK_SITES,
   type DayType,
@@ -102,6 +104,7 @@ function newRow(workSite = "DS기흥"): LaborRow {
     additionalCost: 0,
     useBaseRate: true,
     manualLaborAmount: 0,
+    baseRate: DEFAULT_RATES.baseRate,
   };
 }
 
@@ -138,6 +141,7 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
   const [reportMonth, setReportMonth] = useState(today().slice(0, 7));
   const [includeArchived, setIncludeArchived] = useState(false);
   const [dailyReportOpen, setDailyReportOpen] = useState(false);
+  const promptedRateRows = useRef(new Set<string>());
 
   const result = useMemo(
     () => calculateEstimate(rows, extraCosts, DEFAULT_RATES),
@@ -245,6 +249,24 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
 
   function updateRow(id: string, patch: Partial<LaborRow>) {
     setRows((current) => sortRowsByDate(current.map((row) => row.id === id ? { ...row, ...patch } : row)));
+  }
+
+  function requestRegionalDailyRate(row: LaborRow) {
+    const contractorName = row.contractorName.trim();
+    if (row.contractorType !== "direct" || row.useBaseRate === false || !requiresCustomDailyRate(workSite, contractorName)) return;
+    const promptKey = `${row.id}:${workSite}:${contractorName.toLowerCase()}`;
+    if (promptedRateRows.current.has(promptKey)) return;
+    promptedRateRows.current.add(promptKey);
+    const answer = window.prompt(`${workSite} · ${contractorName} 업체의 인당 일당을 입력해 주세요.`, String(row.baseRate || DEFAULT_RATES.baseRate));
+    if (answer === null) return;
+    const baseRate = Number(answer.replaceAll(",", "").trim());
+    if (!Number.isFinite(baseRate) || baseRate <= 0) {
+      toast.error("업체 일당을 올바른 숫자로 입력해 주세요.");
+      promptedRateRows.current.delete(promptKey);
+      return;
+    }
+    updateRow(row.id, { baseRate: Math.round(baseRate) });
+    toast.success(`${contractorName} 일당을 ${formatWon(baseRate)}으로 적용했습니다.`);
   }
 
   function addRowForDate(sourceRow: LaborRow) {
@@ -623,14 +645,14 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
                           <Select value={row.contractorType} onValueChange={(value) => {
                             const contractorType = value as ContractorType;
                             const presetName = contractorType === "rta" ? "RTA" : contractorType === "vsent" ? "VSEnt" : contractorType === "coreworker" ? "코어워커" : "";
-                            updateRow(row.id, { contractorType, contractorName: presetName, contractorQuoteAmount: DEFAULT_RATES.baseRate, applyOverhead: ["rta", "vsent", "coreworker"].includes(contractorType) ? true : row.applyOverhead });
+                            updateRow(row.id, { contractorType, contractorName: presetName, contractorQuoteAmount: DEFAULT_RATES.baseRate, baseRate: DEFAULT_RATES.baseRate, applyOverhead: ["rta", "vsent", "coreworker"].includes(contractorType) ? true : row.applyOverhead });
                           }}>
                             <SelectTrigger className="w-full" aria-label="투입구분"><SelectValue /></SelectTrigger>
                             <SelectContent>{Object.entries(CONTRACTOR_TYPE_LABELS).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent>
                           </Select>
                         </TableCell>
-                        <TableCell>{row.contractorType === "self" ? <span className="text-sm font-medium text-cyan-700">공무기술팀</span> : row.contractorType === "direct" ? <Input value={row.contractorName} onChange={(event) => updateRow(row.id, { contractorName: event.target.value })} placeholder="업체명 입력" aria-label="업체명" /> : <span className="text-sm text-slate-700">{row.contractorName}</span>}</TableCell>
-                        <TableCell><label className="flex items-center gap-2 text-xs"><Checkbox checked={row.useBaseRate !== false} onCheckedChange={(checked) => updateRow(row.id, { useBaseRate: checked === true })} aria-label="기본일당 적용" /><span>{row.useBaseRate === false ? "제외" : formatWon(DEFAULT_RATES.baseRate)}</span></label></TableCell>
+                        <TableCell>{row.contractorType === "self" ? <span className="text-sm font-medium text-cyan-700">공무기술팀</span> : row.contractorType === "direct" ? <Input value={row.contractorName} onChange={(event) => updateRow(row.id, { contractorName: event.target.value })} onBlur={() => requestRegionalDailyRate(row)} placeholder="업체명 입력" aria-label="업체명" /> : <span className="text-sm text-slate-700">{row.contractorName}</span>}</TableCell>
+                        <TableCell><label className="flex items-center gap-2 text-xs"><Checkbox checked={row.useBaseRate !== false} onCheckedChange={(checked) => updateRow(row.id, { useBaseRate: checked === true })} aria-label="기본일당 적용" /><span>{row.useBaseRate === false ? "제외" : formatWon(dailyRateForRow(row))}</span></label></TableCell>
                         <TableCell><div className="flex justify-center"><Checkbox checked={contractorCostPolicy(row).automatic || row.applyOverhead} disabled={contractorCostPolicy(row).automatic} onCheckedChange={(checked) => updateRow(row.id, { applyOverhead: checked === true })} aria-label="업체별 가산 적용" /></div><p className="mt-1 text-center text-xs leading-4 text-slate-500">{contractorCostPolicy(row).label}</p></TableCell>
                         <TableCell><Input type="number" min="0" step="10000" value={row.additionalCost} onChange={(event) => updateRow(row.id, { additionalCost: Number(event.target.value) })} aria-label="행 추가 비용" /></TableCell>
                         <TableCell>
