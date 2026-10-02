@@ -736,7 +736,7 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
 
           {closedCostData.length > 0 && <Card className="border-slate-200 shadow-sm"><CardHeader><CardTitle className="text-base">종료 공사 견적 대비 실제 노무비</CardTitle><p className="text-sm text-slate-500">기준일이 가장 최근인 종료 공사 3건만 표시합니다. 전체 종료 공사는 통합 대시보드에서 확인하세요.</p></CardHeader><CardContent><CostComparisonChart data={closedCostData} /></CardContent></Card>}
 
-          {filteredSaved.length ? (
+          {filteredSaved.length > 0 && (
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
               {filteredSaved.map((estimate) => (
                 <div key={estimate.id} className={`rounded-xl border bg-white p-4 shadow-sm ${estimate.archivedAt ? "border-dashed border-slate-300 opacity-70" : "border-slate-200"}`}>
@@ -752,7 +752,7 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
                 </div>
               ))}
             </div>
-          ) : <div className="rounded-xl border border-dashed border-slate-300 bg-white px-5 py-10 text-center text-sm text-slate-500">조건에 맞는 저장 견적이 없습니다.</div>}
+          )}
         </section>
       </main>
       <DailyReportImportDialog open={dailyReportOpen} onOpenChange={setDailyReportOpen} existingRows={rows} onApply={applyDailyReport} />
