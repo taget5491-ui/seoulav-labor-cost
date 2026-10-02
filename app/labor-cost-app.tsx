@@ -87,6 +87,10 @@ function today() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function estimateReferenceDate(estimate: SavedEstimate) {
+  return estimate.startDate || estimate.entries.map((entry) => entry.workDate).filter(Boolean).sort()[0] || estimate.updatedAt.slice(0, 10);
+}
+
 function newRow(workSite = "DS기흥"): LaborRow {
   const date = today();
   return {
@@ -155,7 +159,7 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
     if (siteFilter !== "all" && (estimate.siteName || estimate.entries[0]?.workSite) !== siteFilter) return false;
     const haystack = `${estimate.projectName} ${estimate.siteName} ${estimate.companyName} ${estimate.managerName}`.toLowerCase();
     return haystack.includes(searchTerm.trim().toLowerCase());
-  }), [saved, includeArchived, statusFilter, siteFilter, searchTerm]);
+  }).sort((a, b) => estimateReferenceDate(a).localeCompare(estimateReferenceDate(b)) || a.projectName.localeCompare(b.projectName, "ko")), [saved, includeArchived, statusFilter, siteFilter, searchTerm]);
   const monthlySaved = useMemo(() => saved.filter((estimate) => !estimate.archivedAt && (estimate.startDate || estimate.updatedAt.slice(0, 7)).startsWith(reportMonth)), [saved, reportMonth]);
   const monthlyTotal = monthlySaved.reduce((sum, estimate) => sum + estimate.totalAmount, 0);
   const monthlySites = new Set(monthlySaved.map((estimate) => estimate.siteName || estimate.entries[0]?.workSite).filter(Boolean)).size;
@@ -733,7 +737,7 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
                 <div key={estimate.id} className={`rounded-xl border bg-white p-4 shadow-sm ${estimate.archivedAt ? "border-dashed border-slate-300 opacity-70" : "border-slate-200"}`}>
                   <button onClick={() => openEstimate(estimate)} className="w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500">
                     <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate font-medium">{estimate.projectName}</p><p className="mt-1 truncate text-sm text-slate-500">{estimate.siteName || estimate.entries[0]?.workSite || "사업장 미입력"} · {estimate.companyName || "업체명 미입력"}</p><p className="mt-1 truncate text-xs text-slate-400">{estimate.managerName || "담당자 미입력"}{estimate.startDate ? ` · ${estimate.startDate}${estimate.endDate ? ` ~ ${estimate.endDate}` : ""}` : ""}</p></div><div className="flex shrink-0 flex-col items-end gap-1"><span className={`rounded-md px-2 py-1 text-xs ${STATUS_STYLES[estimate.status]}`}>{STATUS_LABELS[estimate.status]}</span><span className="text-xs text-slate-400">v{estimate.version}</span></div></div>
-                    <div className="mt-4 flex items-end justify-between gap-3"><p className="text-lg font-semibold tabular-nums">{formatWon(estimate.totalAmount)}</p><p className="text-xs text-slate-400">{new Date(estimate.updatedAt).toLocaleDateString("ko-KR")}</p></div>
+                    <div className="mt-4 flex items-end justify-between gap-3"><p className="text-lg font-semibold tabular-nums">{formatWon(estimate.totalAmount)}</p><p className="text-xs text-slate-400">기준일 {estimateReferenceDate(estimate)}</p></div>
                   </button>
                   {estimate.quotedLaborAmount > 0 && <div className="mt-3 grid grid-cols-2 gap-2 rounded-lg bg-slate-50 p-2 text-xs"><div><p className="text-slate-400">집행률</p><p className={`mt-0.5 font-medium ${estimate.totalAmount > estimate.quotedLaborAmount ? "text-red-600" : "text-cyan-700"}`}>{((estimate.totalAmount / estimate.quotedLaborAmount) * 100).toFixed(1)}%</p></div><div><p className="text-slate-400">{estimate.totalAmount > estimate.quotedLaborAmount ? "초과 금액" : "잔여 금액"}</p><p className={`mt-0.5 font-medium tabular-nums ${estimate.totalAmount > estimate.quotedLaborAmount ? "text-red-600" : "text-emerald-700"}`}>{formatWon(Math.abs(estimate.quotedLaborAmount - estimate.totalAmount))}</p></div></div>}
                   <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-100 pt-3">

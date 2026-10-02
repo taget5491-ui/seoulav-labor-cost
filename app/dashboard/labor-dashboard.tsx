@@ -53,7 +53,7 @@ export function LaborDashboard({ displayName, initialEstimates }: { displayName:
     return (!search || text.includes(search.toLowerCase())) && (site === ALL || item.siteName === site)
       && (company === ALL || item.companyName === company || item.entries.some((row) => row.contractorName === company))
       && (status === ALL || item.status === status) && (!from || date >= from) && (!to || date <= to);
-  }), [items, search, site, company, status, from, to]);
+  }).sort((a, b) => effectiveDate(a).localeCompare(effectiveDate(b)) || a.projectName.localeCompare(b.projectName, "ko")), [items, search, site, company, status, from, to]);
 
   const summaries = useMemo(() => {
     const totals = summarize(filtered);
