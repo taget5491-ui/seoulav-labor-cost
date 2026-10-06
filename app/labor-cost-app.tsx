@@ -78,6 +78,8 @@ const STATUS_STYLES: Record<EstimateStatus, string> = {
   closed: "bg-blue-100 text-blue-800",
 };
 
+const CUSTOM_SITE_VALUE = "__custom_site__";
+
 const COST_CHART_CONFIG = {
   quoted: { label: "견적서 노무비", color: "#0891b2" },
   actual: { label: "실제 투입 노무비", color: "#f59e0b" },
@@ -471,6 +473,10 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
   }
 
   async function saveEstimate() {
+    if (!workSite.trim()) {
+      toast.error("사이트명을 입력해 주세요.");
+      return;
+    }
     if (!projectName.trim()) {
       toast.error("공사명을 입력해 주세요.");
       return;
@@ -622,11 +628,12 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
               <CardHeader className="border-b border-slate-100"><CardTitle className="text-base">공사 정보</CardTitle></CardHeader>
               <CardContent className="grid gap-4 pt-5 md:grid-cols-2 xl:grid-cols-4">
                 <div className="space-y-2">
-                  <Label htmlFor="workSite">사업장</Label>
-                  <Select value={workSite} onValueChange={(value) => { setWorkSite(value); setRows((current) => current.map((row) => ({ ...row, workSite: value }))); }}>
-                    <SelectTrigger id="workSite" className="w-full" aria-label="사업장"><SelectValue /></SelectTrigger>
-                    <SelectContent>{WORK_SITES.map((site) => <SelectItem key={site} value={site}>{site}</SelectItem>)}</SelectContent>
+                  <Label htmlFor="workSite">사이트</Label>
+                  <Select value={WORK_SITES.includes(workSite as (typeof WORK_SITES)[number]) ? workSite : CUSTOM_SITE_VALUE} onValueChange={(value) => { const site = value === CUSTOM_SITE_VALUE ? "" : value; setWorkSite(site); setRows((current) => current.map((row) => ({ ...row, workSite: site }))); }}>
+                    <SelectTrigger id="workSite" className="w-full" aria-label="사이트"><SelectValue /></SelectTrigger>
+                    <SelectContent>{WORK_SITES.map((site) => <SelectItem key={site} value={site}>{site}</SelectItem>)}<SelectItem value={CUSTOM_SITE_VALUE}>직접입력</SelectItem></SelectContent>
                   </Select>
+                  {!WORK_SITES.includes(workSite as (typeof WORK_SITES)[number]) && <Input value={workSite} onChange={(event) => { const site = event.target.value; setWorkSite(site); setRows((current) => current.map((row) => ({ ...row, workSite: site }))); }} placeholder="사이트명 입력" aria-label="직접입력 사이트명" autoFocus />}
                 </div>
                 <div className="space-y-2"><Label htmlFor="projectName">공사명</Label><Input id="projectName" value={projectName} onChange={(event) => setProjectName(event.target.value)} placeholder="예: DS기흥 회의실 AV 개선공사" /></div>
                 <div className="space-y-2"><Label htmlFor="companyName">업체명</Label><Input id="companyName" value={companyName} onChange={(event) => setCompanyName(event.target.value)} placeholder="예: RTA, 일리스, 에스큐브랩" /></div>
