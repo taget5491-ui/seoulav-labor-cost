@@ -116,6 +116,12 @@ function sortRowsByDate(rows: LaborRow[]) {
   return [...rows].sort((a, b) => (a.workDate || "9999-12-31").localeCompare(b.workDate || "9999-12-31"));
 }
 
+function nextIsoDate(date: string) {
+  const value = new Date(`${date}T12:00:00Z`);
+  value.setUTCDate(value.getUTCDate() + 1);
+  return value.toISOString().slice(0, 10);
+}
+
 export function LaborCostApp({ displayName }: { displayName: string }) {
   const [workSite, setWorkSite] = useState("DS기흥");
   const [projectName, setProjectName] = useState("");
@@ -290,6 +296,14 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
       const next = [...current];
       next.splice(sourceIndex + 1, 0, addedRow);
       return next;
+    });
+  }
+
+  function addNextDatedRow() {
+    setRows((current) => {
+      const latestDate = current.map((row) => row.workDate).filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date)).sort().at(-1) || today();
+      const workDate = nextIsoDate(latestDate);
+      return sortRowsByDate([...current, { ...newRow(workSite), workDate, dayType: dayTypeFromDate(workDate) }]);
     });
   }
 
@@ -648,7 +662,7 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
             <Card className="border-slate-200 shadow-sm">
               <CardHeader className="flex-row items-center justify-between gap-3 border-b border-slate-100">
                 <div><CardTitle className="text-base">투입 계획 및 노무비</CardTitle><p className="mt-1 text-sm text-slate-500">업체를 선택하면 등록된 관리비·공구손료·식대 기준이 자동 적용됩니다. 자체와 직접입력은 필요한 행만 가산을 선택하세요.</p></div>
-                <div className="flex shrink-0 flex-wrap justify-end gap-2"><Button variant="outline" size="sm" onClick={() => setDailyReportOpen(true)}><FileInput /> 공사일보 PDF 불러오기</Button><Button variant="outline" size="sm" onClick={() => setRows((current) => sortRowsByDate([...current, newRow(workSite)]))}><Plus /> 작업 추가</Button></div>
+                <div className="flex shrink-0 flex-wrap justify-end gap-2"><Button variant="outline" size="sm" onClick={() => setDailyReportOpen(true)}><FileInput /> 공사일보 PDF 불러오기</Button><Button variant="outline" size="sm" onClick={addNextDatedRow}><Plus /> 작업 추가</Button></div>
               </CardHeader>
               <CardContent className="p-0">
                 <Table>
