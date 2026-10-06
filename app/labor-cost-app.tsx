@@ -475,8 +475,8 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
       toast.error("공사명을 입력해 주세요.");
       return;
     }
-    if (startDate && endDate && startDate > endDate) {
-      toast.error("공사 종료일을 확인해 주세요.");
+    if (startDate && endDate && startDate >= endDate) {
+      toast.error("공사 종료일은 시작일의 다음 날부터 선택해 주세요.");
       return;
     }
     if (rows.some((row) => !row.description.trim() || row.headcount < 1 || row.days < 0.5)) {
@@ -631,8 +631,8 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
                 <div className="space-y-2"><Label htmlFor="projectName">공사명</Label><Input id="projectName" value={projectName} onChange={(event) => setProjectName(event.target.value)} placeholder="예: DS기흥 회의실 AV 개선공사" /></div>
                 <div className="space-y-2"><Label htmlFor="companyName">업체명</Label><Input id="companyName" value={companyName} onChange={(event) => setCompanyName(event.target.value)} placeholder="예: RTA, 일리스, 에스큐브랩" /></div>
                 <div className="space-y-2"><Label htmlFor="managerName">담당자</Label><Input id="managerName" value={managerName} onChange={(event) => setManagerName(event.target.value)} placeholder="예: 문승균 과장" /></div>
-                <div className="space-y-2"><Label htmlFor="startDate">공사 시작일</Label><Input id="startDate" type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} /></div>
-                <div className="space-y-2"><Label htmlFor="endDate">공사 종료일</Label><Input id="endDate" type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} /></div>
+                <div className="space-y-2"><Label htmlFor="startDate">공사 시작일</Label><Input id="startDate" type="date" value={startDate} onChange={(event) => { const value = event.target.value; setStartDate(value); if (value && endDate && endDate <= value) setEndDate(""); }} /></div>
+                <div className="space-y-2"><Label htmlFor="endDate">공사 종료일</Label><Input id="endDate" type="date" value={endDate} min={startDate ? nextIsoDate(startDate) : undefined} onChange={(event) => setEndDate(event.target.value)} /><p className="text-xs text-slate-500">시작일 다음 날부터 선택할 수 있습니다.</p></div>
                 <div className="space-y-2"><Label htmlFor="status">진행상태</Label><Select value={status} onValueChange={(value) => setStatus(value as EstimateStatus)}><SelectTrigger id="status"><SelectValue /></SelectTrigger><SelectContent>{Object.entries(STATUS_LABELS).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select></div>
               </CardContent>
             </Card>

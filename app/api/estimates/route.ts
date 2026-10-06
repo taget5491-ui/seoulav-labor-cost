@@ -158,7 +158,7 @@ export async function POST(request: Request) {
   if (!user) return Response.json({ error: "로그인이 필요합니다." }, { status: 401 });
   try {
     const input = estimateSchema.parse(await request.json());
-    if (input.startDate && input.endDate && input.startDate > input.endDate) return Response.json({ error: "종료일은 시작일보다 빠를 수 없습니다." }, { status: 400 });
+    if (input.startDate && input.endDate && input.startDate >= input.endDate) return Response.json({ error: "종료일은 시작일의 다음 날부터 선택할 수 있습니다." }, { status: 400 });
     const db = getD1();
 
     if (!input.sourceGroupId) {
