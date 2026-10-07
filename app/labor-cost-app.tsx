@@ -199,6 +199,22 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
   }, [loadSaved]);
 
   useEffect(() => {
+    const estimateId = new URLSearchParams(window.location.search).get("edit");
+    if (!estimateId) return;
+    const controller = new AbortController();
+    void fetch(`/api/estimates?id=${encodeURIComponent(estimateId)}`, { cache: "no-store", signal: controller.signal })
+      .then(async (response) => {
+        const data = (await response.json()) as { estimate?: SavedEstimate; error?: string };
+        if (!response.ok || !data.estimate) throw new Error(data.error || "공사 정보를 불러오지 못했습니다.");
+        openEstimate(data.estimate);
+        if (data.estimate.status === "closed") setAllowLockedRevision(true);
+        window.history.replaceState({}, "", "/");
+      })
+      .catch((error) => { if (error instanceof Error && error.name !== "AbortError") toast.error(error.message); });
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
     const modelContext = (document as unknown as {
       modelContext?: {
         registerTool: (tool: Record<string, unknown>, options?: { signal: AbortSignal }) => void;
