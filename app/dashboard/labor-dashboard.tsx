@@ -915,7 +915,7 @@ export function LaborDashboard({
                     월별·전체·사이트별·업체별로 프로젝트 내역을 확인합니다.
                   </p>
                   {detailCompany !== ALL && (
-                    <p className="mt-1 text-sm font-medium text-cyan-700">
+                    <p className="mt-1 text-base font-semibold text-cyan-700">
                       선택 업체: {detailCompany}
                       {detailScope === "company"
                         ? ` · 노무비 합계 ${formatWon(detailCompanyTotal)}`
@@ -923,7 +923,7 @@ export function LaborDashboard({
                     </p>
                   )}
                   {detailScope === "site" && (
-                    <p className="mt-1 text-sm font-medium text-cyan-700">
+                    <p className="mt-1 text-base font-semibold text-cyan-700">
                       선택 사이트: {detailSite} · 견적 노무비 총합 {formatWon(detailSummary.quoted)} · 실제 노무비 총합 {formatWon(detailSummary.actual)}
                     </p>
                   )}
