@@ -639,7 +639,7 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
 
         <div className="print-only mb-6 hidden border-b border-slate-300 pb-4"><h1 className="text-2xl font-semibold">노무비 산출서</h1><p className="mt-1 text-sm text-slate-600">{workSite} · {projectName}</p></div>
 
-        <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_300px] xl:gap-6 2xl:grid-cols-[minmax(0,1fr)_320px] 2xl:gap-8">
+        <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_380px] xl:gap-6 2xl:grid-cols-[minmax(0,1fr)_420px] 2xl:gap-8">
           <fieldset disabled={isLocked} className="min-w-0 space-y-5 disabled:opacity-90">
             {isLocked && <div className="no-print rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{status === "closed" ? "종료된 공사입니다. 상단의 ‘종료 공사 수정’을 누르면 종료 상태를 유지하면서 수정할 수 있습니다." : "확정된 견적은 잠금 상태입니다. 변경하려면 상단의 수정본 만들기를 선택하세요."}</div>}
             <Card className="border-slate-200 shadow-sm">
@@ -751,7 +751,7 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
                 <div className="border-t border-white/15 pt-4"><p className="text-sm text-slate-300">실제 투입 노무비</p><p className="mt-1 text-2xl font-semibold tracking-tight text-cyan-300 tabular-nums">{formatWon(result.grandTotal)}</p><p className="mt-2 text-xs text-slate-300">추가 비용 포함 총액 {formatWon(result.totalCost)}</p></div>
               </CardContent>
             </Card>
-            <Card className="border-slate-200 shadow-sm"><CardHeader><CardTitle className="text-base">업체별 집계 기준</CardTitle></CardHeader><CardContent className="space-y-3 text-sm"><div className="flex items-center justify-between gap-4"><span className="text-slate-600">기본 일당</span><span className="font-medium tabular-nums">{formatWon(INTERNAL_LABOR_RATE)} / 인일</span></div><div className="space-y-1.5 border-t border-slate-100 pt-3 text-xs leading-5"><p><span className="font-semibold">공무기술팀</span> · 요일·관리비 가산 없이 30만원 고정</p><p><span className="font-semibold">VSEnt</span> · 관리비 15%</p><p><span className="font-semibold">RTA</span> · 관리비 10% + 공구 3%</p><p><span className="font-semibold">코어워커</span> · 관리비 10% + 공구 3% + 식대 1만원/인일</p></div><div className="flex items-center justify-between gap-4 border-t border-slate-100 pt-3"><span className="text-slate-600">외부업체 요일 가산</span><span className="font-medium">토 5만원 · 휴일 10만원 / 인일</span></div></CardContent></Card>
+            <Card className="border-slate-200 shadow-sm"><CardHeader><CardTitle className="text-base">업체별 집계 기준</CardTitle></CardHeader><CardContent className="space-y-3 text-sm"><div className="flex items-center justify-between gap-4"><span className="text-slate-600">기본 일당</span><span className="font-medium tabular-nums">{formatWon(INTERNAL_LABOR_RATE)} / 인일</span></div><div className="space-y-1.5 border-t border-slate-100 pt-3 text-xs leading-5"><p><span className="font-semibold">공무기술팀</span> · 요일·관리비 가산 없이 30만원 고정</p><p><span className="font-semibold">VSEnt</span> · 관리비 15%</p><p><span className="font-semibold">RTA</span> · 관리비 10% + 공구 3%</p><p><span className="font-semibold">코어워커</span> · 관리비 10% + 공구 3% + 식대 1만원/인일</p></div><div className="flex items-center justify-between gap-4 whitespace-nowrap border-t border-slate-100 pt-3"><span className="text-slate-600">외부업체 요일 가산</span><span className="font-medium">토 5만원 · 휴일 10만원 / 인일</span></div></CardContent></Card>
           </aside>
         </div>
 
