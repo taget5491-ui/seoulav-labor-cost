@@ -21,9 +21,18 @@ function groupLines(items: PositionedPdfText[]) {
 }
 
 function parseIsoDate(value: string) {
-  const iso = value.match(/(20\d{2})[-./년]\s*(\d{1,2})[-./월]\s*(\d{1,2})/);
+  const iso = value.match(/(20\d{2})\s*[-./년]\s*(\d{1,2})\s*[-./월]\s*(\d{1,2})/);
   if (!iso) return "";
   return `${iso[1]}-${iso[2].padStart(2, "0")}-${iso[3].padStart(2, "0")}`;
+}
+
+function parseFilenameDate(filename: string) {
+  const match = filename.match(/(?:^|\D)(20\d{2}|\d{2})(\d{2})(\d{2})(?:\D|$)/);
+  if (!match) return "";
+  const year = match[1].length === 2 ? `20${match[1]}` : match[1];
+  const date = `${year}-${match[2]}-${match[3]}`;
+  const parsed = new Date(`${date}T12:00:00Z`);
+  return Number.isNaN(parsed.valueOf()) || parsed.toISOString().slice(0, 10) !== date ? "" : date;
 }
 
 function inferSite(projectName: string) {
@@ -35,6 +44,14 @@ function inferSite(projectName: string) {
     [/DX인재개발원/, "DX인재개발원"], [/SDI기흥/, "SDI기흥"], [/SDI천안/, "SDI천안"], [/SDC/, "SDC"],
   ];
   return rules.find(([pattern]) => pattern.test(normalized))?.[1] ?? "사외";
+}
+
+function splitCompanyItem(item: PositionedPdfText) {
+  const normalized = compact(item.text);
+  const known = [...normalized.matchAll(/서울영상테크|RTA|VSENT|코어워커/gi)];
+  if (known.length <= 1) return [item];
+  const segmentWidth = Math.max(item.width / known.length, 1);
+  return known.map((match, index) => ({ text: match[0], x: item.x + segmentWidth * index, y: item.y, width: segmentWidth }));
 }
 
 export function normalizeCompany(source: string): { contractorType: ContractorType; contractorName: string } {
@@ -65,14 +82,20 @@ function extractLaborCandidates(lines: TextLine[], pageWidth: number, reportDate
 
   for (const [shiftIndex, companyRow] of companyRows.slice(0, 2).entries()) {
     const shift = shiftIndex === 0 ? "day" : "night";
-    const companies = companyRow.items.filter((item) => item.x > pageWidth * 0.25 && item.x < midpoint && !compact(item.text).includes("업체명"));
+    const companyLabel = companyRow.items.find((item) => compact(item.text).includes("업체명"));
+    const labelRight = companyLabel ? companyLabel.x + Math.max(companyLabel.width, 28) : pageWidth * 0.2;
+    const companies = companyRow.items.filter((item) => item.x >= labelRight - 2 && item.x < midpoint && !compact(item.text).includes("업체명")).flatMap(splitCompanyItem);
     if (!companies.length) continue;
     const countRow = lines.filter((line) => line.y < companyRow.y - 2 && line.y > companyRow.y - 18).sort((a, b) => b.y - a.y)[0];
-    const counts = countRow?.items.filter((item) => item.x > pageWidth * 0.25 && item.x < midpoint && /^\d+$/.test(item.text.trim())) ?? [];
+    const counts = countRow?.items.flatMap((item) => {
+      if (item.x < labelRight - 2 || item.x >= midpoint) return [];
+      const match = compact(item.text).match(/^(\d+(?:\.\d+)?)(?:명|인)?$/);
+      return match ? [{ ...item, numericValue: Number(match[1]) }] : [];
+    }) ?? [];
     for (const company of companies) {
       const count = counts.reduce<{ distance: number; value: number } | null>((best, item) => {
         const distance = Math.abs(item.x - company.x);
-        return !best || distance < best.distance ? { distance, value: Number(item.text) } : best;
+        return !best || distance < best.distance ? { distance, value: item.numericValue } : best;
       }, null);
       if (!count?.value) continue;
       const normalized = normalizeCompany(company.text);
@@ -105,7 +128,11 @@ export function parseDailyReport(items: PositionedPdfText[], pageWidth: number):
   const startDate = periodDates[0] ? parseIsoDate(periodDates[0]) : "";
   const endDate = periodDates[1] ? parseIsoDate(periodDates[1]) : "";
   const reportLine = lines.find((line) => compact(line.text).includes("작성일자"));
-  const reportDate = reportLine ? parseIsoDate(reportLine.text) : "";
+  const reportLabel = reportLine?.items.find((item) => compact(item.text).includes("작성일자"));
+  const reportDateText = reportLine && reportLabel
+    ? [reportLabel.text.replace(/^.*?작성\s*일자/u, ""), ...reportLine.items.filter((item) => item.x > reportLabel.x).map((item) => item.text)].join(" ")
+    : reportLine?.text.replace(/^.*?작성\s*일자/u, "") ?? "";
+  const reportDate = parseIsoDate(reportDateText);
 
   const primaryLine = lines.find((line) => compact(line.text).includes("주요작업내용"));
   const primaryWork = primaryLine ? primaryLine.items.filter((item) => item.x >= pageWidth * 0.25).map((item) => item.text.trim()).filter(Boolean).join(" ") : "";
@@ -152,6 +179,16 @@ export async function extractDailyReport(file: File): Promise<DailyReportExtract
     });
     page.cleanup();
     const result = parseDailyReport(items, viewport.width);
+    if (!result.reportDate) {
+      const fallbackDate = parseFilenameDate(file.name);
+      if (fallbackDate) {
+        result.reportDate = fallbackDate;
+        result.laborCandidates = result.laborCandidates.map((candidate) => ({ ...candidate, workDate: fallbackDate }));
+        result.warnings = result.warnings.filter((warning) => warning !== "작성일자를 찾지 못했습니다.");
+        result.warnings.push("PDF 본문에서 작성일자를 찾지 못해 파일명의 날짜를 적용했습니다.");
+      }
+    }
+    result.laborCandidates = result.laborCandidates.map((candidate) => ({ ...candidate, sourceFileName: file.name }));
     if (document.numPages > 1) result.warnings.push(`첫 페이지 기준으로 분석했습니다. 전체 ${document.numPages}페이지입니다.`);
     return result;
   } finally {

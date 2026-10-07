@@ -9,6 +9,7 @@ export type PositionedPdfText = {
 
 export type DailyReportLaborCandidate = {
   id: string;
+  sourceFileName?: string;
   workDate: string;
   description: string;
   shift: "day" | "night";

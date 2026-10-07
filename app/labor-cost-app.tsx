@@ -2,7 +2,7 @@
 /* eslint-disable @next/next/no-html-link-for-pages */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Archive, Calculator, CalendarDays, Download, ExternalLink, FileClock, FileInput, FilePenLine, FileText, History, LayoutDashboard, Lock, Paperclip, Plus, Printer, RotateCcw, Save, Search, Trash2, Users } from "lucide-react";
+import { Archive, Calculator, CalendarDays, Download, ExternalLink, FileClock, FileInput, FilePenLine, FileText, History, LayoutDashboard, Lock, Paperclip, Plus, Printer, RotateCcw, Save, Search, Trash2, Upload, Users } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -153,6 +153,8 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
   const [reportMonth, setReportMonth] = useState(today().slice(0, 7));
   const [includeArchived, setIncludeArchived] = useState(false);
   const [dailyReportOpen, setDailyReportOpen] = useState(false);
+  const [dailyReportFiles, setDailyReportFiles] = useState<File[]>([]);
+  const [isDailyReportDragging, setIsDailyReportDragging] = useState(false);
   const promptedRateRows = useRef(new Set<string>());
 
   const result = useMemo(
@@ -685,9 +687,15 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
             <Card className="border-slate-200 shadow-sm">
               <CardHeader className="flex-row items-center justify-between gap-3 border-b border-slate-100">
                 <div><CardTitle className="text-base">투입 계획 및 노무비</CardTitle><p className="mt-1 text-sm text-slate-500">업체를 선택하면 등록된 관리비·공구손료·식대 기준이 자동 적용됩니다. 자체와 직접입력은 필요한 행만 가산을 선택하세요.</p></div>
-                <div className="flex shrink-0 flex-wrap justify-end gap-2"><Button variant="outline" size="sm" onClick={() => setDailyReportOpen(true)}><FileInput /> 공사일보 PDF 불러오기</Button><Button variant="outline" size="sm" onClick={addNextDatedRow}><Plus /> 작업 추가</Button></div>
+                <div className="flex shrink-0 flex-wrap justify-end gap-2"><Button variant="outline" size="sm" onClick={addNextDatedRow}><Plus /> 작업 추가</Button></div>
               </CardHeader>
               <CardContent className="p-0">
+                <div className="border-b border-slate-100 p-4">
+                  <div className={`relative rounded-xl border-2 border-dashed px-5 py-4 text-center transition-colors ${isDailyReportDragging ? "border-cyan-600 bg-cyan-100/80" : "border-cyan-300 bg-cyan-50/50"}`} onDragEnter={() => setIsDailyReportDragging(true)} onDragOver={() => setIsDailyReportDragging(true)} onDragLeave={(event) => { const nextTarget = event.relatedTarget; if (!(nextTarget instanceof Node) || !event.currentTarget.contains(nextTarget)) setIsDailyReportDragging(false); }} onDrop={() => setIsDailyReportDragging(false)}>
+                    <Input type="file" accept="application/pdf,.pdf" multiple className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0" aria-label="공사일보 PDF 여러 개를 선택하거나 끌어다 놓기" onChange={(event) => { const files = Array.from(event.target.files ?? []); if (files.length) { setDailyReportFiles(files); setDailyReportOpen(true); } event.currentTarget.value = ""; }} />
+                    <Upload className="mx-auto size-6 text-cyan-700" /><p className="mt-1 text-sm font-medium">공사일보 PDF를 끌어다 놓으세요</p><p className="mt-0.5 text-xs text-slate-500">한 번에 여러 파일을 놓거나 눌러서 여러 개를 선택할 수 있습니다.</p>
+                  </div>
+                </div>
                 <Table>
                   <TableHeader><TableRow className="bg-slate-50"><TableHead className="min-w-[215px] pl-5">투입일자</TableHead><TableHead className="min-w-[125px]">투입구분</TableHead><TableHead className="min-w-[125px]">업체명</TableHead><TableHead className="min-w-[125px]">기본 일당</TableHead><TableHead className="min-w-[160px] text-center">업체별 가산</TableHead><TableHead className="min-w-[120px]">추가 비용</TableHead><TableHead className="min-w-[100px]">근무구분</TableHead><TableHead className="min-w-[88px] text-center">인원</TableHead><TableHead className="min-w-[88px] text-center">일수</TableHead><TableHead className="min-w-[120px] text-right">계산 노무비</TableHead><TableHead className="w-12" /></TableRow></TableHeader>
                   <TableBody>
@@ -792,7 +800,7 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
           )}
         </section>
       </main>
-      <DailyReportImportDialog open={dailyReportOpen} onOpenChange={setDailyReportOpen} existingRows={rows} onApply={applyDailyReport} />
+      <DailyReportImportDialog open={dailyReportOpen} onOpenChange={(open) => { setDailyReportOpen(open); if (!open) setDailyReportFiles([]); }} initialFiles={dailyReportFiles} existingRows={rows} onApply={applyDailyReport} />
     </div>
   );
 }

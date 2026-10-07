@@ -45,3 +45,18 @@ test("parses project, dates, work and daytime labor candidates", () => {
   assert.deepEqual(plan.externalCandidates.map((candidate) => candidate.sourceCompanyName), ["RTA"]);
   assert.equal(plan.externalCandidates[0].contractorQuoteAmount, 300_000);
 });
+
+test("uses the date after 작성일자 instead of the construction start date", () => {
+  const items = [
+    ...line(700, [[45, "공사기간"], [150, "2026-08-05 ~ 2026-10-31"], [330, "작성일자"], [410, "2026. 08. 12"]]),
+    ...line(600, [[220, "금일 작업 현황"]]),
+    ...line(500, [[120, "업체명"], [160, "RTA"], [220, "서울영상테크"]]),
+    ...line(490, [[120, "주간"], [160, "2명"], [220, "3명"]]),
+  ];
+  const result = parseDailyReport(items, 595);
+  assert.equal(result.reportDate, "2026-08-12");
+  assert.deepEqual(result.laborCandidates.map(({ contractorType, headcount }) => ({ contractorType, headcount })), [
+    { contractorType: "rta", headcount: 2 },
+    { contractorType: "self", headcount: 3 },
+  ]);
+});
