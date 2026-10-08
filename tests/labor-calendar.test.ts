@@ -100,6 +100,18 @@ test("prefers a manually entered company total while preserving daily headcount 
   assert.equal(result.rows.find((row) => row.id === "manual")?.totalAmount, 1_500_000);
 });
 
+test("can exclude internal labor cost without changing internal work units", () => {
+  const result = calculateEstimate([{
+    id: "self-excluded", description: "공사일보 투입", workSite: "DSR", workDate: "2026-08-05", dayType: "weekday",
+    headcount: 3, days: 1, contractorType: "self", contractorName: "", contractorQuoteAmount: 300_000,
+    applyOverhead: false, additionalCost: 0,
+  }], 0, undefined, 0, 0, false);
+  assert.equal(result.internalWorkUnits, 3);
+  assert.equal(result.internalHeadcount, 3);
+  assert.equal(result.internalLaborAmount, 0);
+  assert.equal(result.grandTotal, 0);
+});
+
 test("handles lunar holidays and Korean substitute-holiday rules", () => {
   assert.equal(isKoreanPublicHoliday("2026-02-17"), true);
   assert.equal(isKoreanPublicHoliday("2026-05-24"), true);

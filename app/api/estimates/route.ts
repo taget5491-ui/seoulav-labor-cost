@@ -35,6 +35,7 @@ const estimateSchema = z.object({
   extraCosts: z.coerce.number().int().min(0).max(1_000_000_000).default(0),
   internalHeadcount: z.coerce.number().int().min(0).max(100).default(0),
   internalDays: z.coerce.number().min(0).max(365).default(0),
+  includeInternalLabor: z.boolean().default(true),
   quotedLaborAmount: z.coerce.number().int().min(0).max(10_000_000_000).default(0),
   quoteFileKey: z.union([z.literal(""), z.string().regex(/^quotes\/[0-9a-f-]+\.pdf$/i)]).default(""),
   quoteFileName: z.string().trim().max(180).default(""),
@@ -93,6 +94,7 @@ function mapEstimate(item: DbRow, entries: DbRow[], history: DbRow[] = []) {
     internalHeadcount: item.internal_headcount,
     internalDays: item.internal_days,
     internalLaborAmount: item.internal_labor_amount,
+    includeInternalLabor: Number(item.internal_labor_amount ?? 0) > 0 || !entries.some((entry) => entry.contractor_type === "self"),
     quotedLaborAmount: item.quoted_labor_amount,
     quoteFileKey: item.quote_file_key,
     quoteFileName: item.quote_file_name,
@@ -181,7 +183,7 @@ export async function POST(request: Request) {
     const version = Number(latest?.version ?? 0) + 1;
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
-    const calculation = calculateEstimate(input.entries.map((entry) => ({ ...entry, workSite: input.siteName })) as LaborRow[], input.extraCosts, DEFAULT_RATES, input.internalHeadcount, input.internalDays);
+    const calculation = calculateEstimate(input.entries.map((entry) => ({ ...entry, workSite: input.siteName })) as LaborRow[], input.extraCosts, DEFAULT_RATES, input.internalHeadcount, input.internalDays, input.includeInternalLabor);
     const statements = [
       db.prepare(
         `INSERT INTO estimates (

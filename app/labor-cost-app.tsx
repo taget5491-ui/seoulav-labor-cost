@@ -51,6 +51,7 @@ type SavedEstimate = {
   notes: string;
   extraCosts: number;
   internalLaborAmount: number;
+  includeInternalLabor: boolean;
   quotedLaborAmount: number;
   quoteFileKey: string;
   quoteFileName: string;
@@ -134,6 +135,7 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
   const [status, setStatus] = useState<EstimateStatus>("draft");
   const [notes, setNotes] = useState("");
   const [extraCosts, setExtraCosts] = useState(0);
+  const [includeInternalLabor, setIncludeInternalLabor] = useState(true);
   const [quotedLaborAmount, setQuotedLaborAmount] = useState(0);
   const [quoteFileKey, setQuoteFileKey] = useState("");
   const [quoteFileName, setQuoteFileName] = useState("");
@@ -158,8 +160,8 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
   const promptedRateRows = useRef(new Set<string>());
 
   const result = useMemo(
-    () => calculateEstimate(rows, extraCosts, DEFAULT_RATES),
-    [rows, extraCosts],
+    () => calculateEstimate(rows, extraCosts, DEFAULT_RATES, 0, 0, includeInternalLabor),
+    [rows, extraCosts, includeInternalLabor],
   );
   const externalLaborBreakdown = useMemo(() => {
     const totals = new Map<string, number>();
@@ -395,6 +397,7 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
     setStatus("draft");
     setNotes("");
     setExtraCosts(0);
+    setIncludeInternalLabor(true);
     setQuotedLaborAmount(0);
     setQuoteFileKey("");
     setQuoteFileName("");
@@ -418,6 +421,7 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
     setStatus(estimate.status || "draft");
     setNotes(estimate.notes);
     setExtraCosts(estimate.extraCosts);
+    setIncludeInternalLabor(estimate.includeInternalLabor !== false);
     setQuotedLaborAmount(estimate.quotedLaborAmount ?? 0);
     setQuoteFileKey(estimate.quoteFileKey || "");
     setQuoteFileName(estimate.quoteFileName || "");
@@ -549,6 +553,7 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
           status,
           notes,
           extraCosts,
+          includeInternalLabor,
           internalHeadcount: 0,
           internalDays: 0,
           quotedLaborAmount,
@@ -704,6 +709,7 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
                     <Upload className="mx-auto size-6 text-cyan-700" /><p className="mt-1 text-sm font-medium">공사일보 PDF를 끌어다 놓으세요</p><p className="mt-0.5 text-xs text-slate-500">한 번에 여러 파일을 놓거나 눌러서 여러 개를 선택할 수 있습니다.</p>
                   </div>
                 </div>
+                <label className="flex items-center gap-3 rounded-xl border border-cyan-200 bg-white px-4 py-3 text-sm"><Checkbox checked={includeInternalLabor} onCheckedChange={(checked) => setIncludeInternalLabor(checked === true)} aria-label="공무기술팀 노무비 적용" /><span><span className="font-medium">공무기술팀 노무비 적용</span><span className="ml-2 text-xs text-slate-500">체크 해제 시 인원·공수는 유지되고 노무비만 0원으로 제외됩니다.</span></span></label>
                 <Table>
                   <TableHeader><TableRow className="bg-slate-50"><TableHead className="min-w-[215px] pl-5">투입일자</TableHead><TableHead className="min-w-[125px]">투입구분</TableHead><TableHead className="min-w-[125px]">업체명</TableHead><TableHead className="min-w-[125px]">기본 일당</TableHead><TableHead className="min-w-[160px] text-center">업체별 가산</TableHead><TableHead className="min-w-[120px]">추가 비용</TableHead><TableHead className="min-w-[100px]">근무구분</TableHead><TableHead className="min-w-[88px] text-center">인원</TableHead><TableHead className="min-w-[88px] text-center">일수</TableHead><TableHead className="min-w-[120px] text-right">계산 노무비</TableHead><TableHead className="w-12" /></TableRow></TableHeader>
                   <TableBody>

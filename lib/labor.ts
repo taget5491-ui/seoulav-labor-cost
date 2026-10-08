@@ -237,6 +237,7 @@ export function calculateEstimate(
   rates = DEFAULT_RATES,
   internalHeadcount = 0,
   internalDays = 0,
+  includeInternalLabor = true,
 ) {
   const contractorKey = (row: Pick<LaborRow, "contractorType" | "contractorName">) =>
     (row.contractorName || CONTRACTOR_TYPE_LABELS[row.contractorType] || "").replace(/\s+/g, "").toLocaleLowerCase("ko-KR");
@@ -277,7 +278,8 @@ export function calculateEstimate(
   const internalRows = calculatedRows.filter((row) => row.contractorType === "self");
   const externalRows = calculatedRows.filter((row) => row.contractorType !== "self");
   const internalWorkUnits = internalRows.reduce((sum, row) => sum + row.units, 0) || legacyInternalUnits;
-  const internalLaborAmount = internalRows.length ? internalRows.reduce((sum, row) => sum + row.totalAmount, 0) : Math.round(legacyInternalUnits * INTERNAL_LABOR_RATE);
+  const calculatedInternalLaborAmount = internalRows.length ? internalRows.reduce((sum, row) => sum + row.totalAmount, 0) : Math.round(legacyInternalUnits * INTERNAL_LABOR_RATE);
+  const internalLaborAmount = includeInternalLabor ? calculatedInternalLaborAmount : 0;
   const externalContractorAmount = externalRows.reduce((sum, row) => sum + row.totalAmount, 0);
   return {
     rows: calculatedRows,
