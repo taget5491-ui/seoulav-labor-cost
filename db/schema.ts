@@ -70,3 +70,13 @@ export const laborEntries = sqliteTable(
   },
   (table) => [index("idx_labor_entries_estimate_id").on(table.estimateId)],
 );
+
+export const appUsers = sqliteTable("app_users", {
+  email: text("email").primaryKey(),
+  userId: text("user_id").notNull().default(""),
+  displayName: text("display_name").notNull().default(""),
+  role: text("role").notNull().default("user"),
+  active: integer("active", { mode: "boolean" }).notNull().default(true),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});

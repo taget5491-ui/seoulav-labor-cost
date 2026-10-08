@@ -1,9 +1,13 @@
-import { getChatGPTUser } from "./chatgpt-auth";
+import { redirect } from "next/navigation";
+import { requireChatGPTUser } from "./chatgpt-auth";
 import { LaborCostApp } from "./labor-cost-app";
+import { ensureAppUser } from "@/lib/app-users";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const user = await getChatGPTUser();
-  return <LaborCostApp displayName={user?.displayName ?? "사내 사용자"} />;
+  const identity = await requireChatGPTUser("/");
+  const user = await ensureAppUser(identity);
+  if (!user) redirect("/access-denied");
+  return <LaborCostApp displayName={user.displayName} isAdmin={user.role === "admin"} />;
 }

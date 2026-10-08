@@ -1,11 +1,15 @@
 import { requireChatGPTUser } from "@/app/chatgpt-auth";
 import { getD1 } from "@/db";
+import { ensureAppUser } from "@/lib/app-users";
+import { redirect } from "next/navigation";
 import { LaborDashboard } from "./labor-dashboard";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const user = await requireChatGPTUser("/dashboard");
+  const identity = await requireChatGPTUser("/dashboard");
+  const user = await ensureAppUser(identity);
+  if (!user) redirect("/access-denied");
   const db = getD1();
   const estimates = await db.prepare(
     `SELECT e.* FROM estimates e
@@ -42,5 +46,5 @@ export default async function DashboardPage() {
       baseRate: Number(entry.base_rate ?? 300000),
     })),
   }));
-  return <LaborDashboard displayName={user.displayName} initialEstimates={initialEstimates} />;
+  return <LaborDashboard displayName={user.displayName} isAdmin={user.role === "admin"} initialEstimates={initialEstimates} />;
 }

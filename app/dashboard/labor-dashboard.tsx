@@ -13,6 +13,7 @@ import {
   Printer,
   RotateCcw,
   Search,
+  ShieldCheck,
   Users,
 } from "lucide-react";
 import {
@@ -132,9 +133,11 @@ const companyLaborForEstimate = (item: Estimate, name: string) =>
 
 export function LaborDashboard({
   displayName,
+  isAdmin,
   initialEstimates,
 }: {
   displayName: string;
+  isAdmin: boolean;
   initialEstimates: Estimate[];
 }) {
   const items = initialEstimates;
@@ -455,6 +458,14 @@ export function LaborDashboard({
             >
               <ArrowLeft className="size-4" /> 산정 화면
             </a>
+            {isAdmin && (
+              <a
+                href="/admin"
+                className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-white/25 bg-white/10 px-4 text-sm font-medium text-white transition-colors hover:bg-white/20"
+              >
+                <ShieldCheck className="size-4" /> 계정 관리
+              </a>
+            )}
             <div className="hidden text-right sm:block">
               <p className="text-sm">{displayName}</p>
               <p className="text-xs text-slate-300">사용자</p>

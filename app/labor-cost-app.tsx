@@ -2,7 +2,7 @@
 /* eslint-disable @next/next/no-html-link-for-pages */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Archive, Calculator, CalendarDays, Download, ExternalLink, FileClock, FileInput, FilePenLine, FileText, History, LayoutDashboard, Lock, Paperclip, Plus, Printer, RotateCcw, Save, Search, Trash2, Upload, Users } from "lucide-react";
+import { Archive, Calculator, CalendarDays, Download, ExternalLink, FileClock, FileInput, FilePenLine, FileText, History, LayoutDashboard, Lock, Paperclip, Plus, Printer, RotateCcw, Save, Search, ShieldCheck, Trash2, Upload, Users } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -126,7 +126,7 @@ function nextIsoDate(date: string) {
   return value.toISOString().slice(0, 10);
 }
 
-export function LaborCostApp({ displayName }: { displayName: string }) {
+export function LaborCostApp({ displayName, isAdmin }: { displayName: string; isAdmin: boolean }) {
   const [workSite, setWorkSite] = useState("DS기흥");
   const [projectName, setProjectName] = useState("");
   const [companyName, setCompanyName] = useState("");
@@ -635,6 +635,7 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
           <div className="flex items-center gap-3">
             {/* Full document navigation avoids the hosted runtime's broken RSC prefetch path. */}
             <a href="/dashboard" className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-white/25 bg-white/10 px-4 text-sm font-medium text-white transition-colors hover:bg-white/20"><LayoutDashboard className="size-4" /> 통합 대시보드</a>
+            {isAdmin && <a href="/admin" className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-white/25 bg-white/10 px-4 text-sm font-medium text-white transition-colors hover:bg-white/20"><ShieldCheck className="size-4" /> 계정 관리</a>}
             <div className="hidden text-right sm:block"><p className="text-sm">{displayName}</p><p className="text-xs text-slate-300">작성자</p></div>
           </div>
         </div>
