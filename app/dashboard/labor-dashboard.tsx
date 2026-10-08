@@ -315,6 +315,7 @@ export function LaborDashboard({
     [detailItems, detailCompany],
   );
   const detailSummary = useMemo(() => summarize(detailItems), [detailItems]);
+  const detailDifference = detailSummary.quoted - detailSummary.actual;
 
   const resetFilters = () => {
     setSearch("");
@@ -927,6 +928,11 @@ export function LaborDashboard({
                       선택 사이트: {detailSite} · 견적 노무비 총합 {formatWon(detailSummary.quoted)} · 실제 노무비 총합 {formatWon(detailSummary.actual)}
                     </p>
                   )}
+                  {detailScope === "overall" && (
+                    <p className="mt-1 text-base font-semibold text-cyan-700">
+                      전체 · 견적 노무비 총합 {formatWon(detailSummary.quoted)} · 실제 노무비 총합 {formatWon(detailSummary.actual)} · 차액 <span className={detailDifference < 0 ? "text-red-600" : "text-cyan-700"}>{detailDifference > 0 ? "+" : ""}{formatWon(detailDifference)}</span> · 집행률 {detailSummary.rate.toFixed(1)}%
+                    </p>
+                  )}
                 </div>
                 <span className="text-sm text-slate-500">
                   {detailItems.length}건
@@ -944,7 +950,7 @@ export function LaborDashboard({
                   <Button
                     size="sm"
                     variant={detailScope === "overall" ? "default" : "ghost"}
-                    onClick={() => setDetailScope("overall")}
+                    onClick={() => { setDetailScope("overall"); setDetailCompany(ALL); }}
                   >
                     전체
                   </Button>
