@@ -1,6 +1,5 @@
 import { getD1 } from "@/db";
-import { getChatGPTUser } from "@/app/chatgpt-auth";
-import { ensureAppUser } from "@/lib/app-users";
+import { getSessionUser } from "@/lib/password-auth";
 import { calculateEstimate, DEFAULT_RATES, type LaborRow } from "@/lib/labor";
 import { z } from "zod";
 
@@ -51,10 +50,7 @@ const archiveSchema = z.object({ groupId: z.string().min(1), action: z.enum(["ar
 type DbRow = Record<string, unknown>;
 
 async function currentUser() {
-  const identity = await getChatGPTUser();
-  if (identity) return ensureAppUser(identity);
-  if (process.env.NODE_ENV !== "production") return ensureAppUser({ userId: "local-preview", email: "preview@local", displayName: "로컬 미리보기" });
-  return null;
+  return getSessionUser();
 }
 
 function mapEntry(entry: DbRow) {

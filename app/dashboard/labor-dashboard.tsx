@@ -26,6 +26,7 @@ import {
   YAxis,
 } from "recharts";
 import { toast } from "sonner";
+import { LogoutButton } from "@/app/logout-button";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -466,6 +467,7 @@ export function LaborDashboard({
                 <ShieldCheck className="size-4" /> 계정 관리
               </a>
             )}
+            <LogoutButton />
             <div className="hidden text-right sm:block">
               <p className="text-sm">{displayName}</p>
               <p className="text-xs text-slate-300">사용자</p>

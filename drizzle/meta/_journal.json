@@ -64,6 +64,13 @@
       "when": 1791441589802,
       "tag": "0008_cold_azazel",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1791447455947,
+      "tag": "0009_right_lady_mastermind",
+      "breakpoints": true
     }
   ]
 }

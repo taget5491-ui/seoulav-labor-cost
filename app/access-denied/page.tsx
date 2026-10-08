@@ -11,7 +11,7 @@ export default function AccessDeniedPage() {
         <p className="mt-3 text-sm leading-6 text-slate-600">
           관리자에게 계정 활성화를 요청해 주세요. 다른 ChatGPT 계정으로 접속하려면 아래 버튼을 이용하세요.
         </p>
-        <a href="/signout-with-chatgpt?return_to=/" className="mt-6 inline-flex h-10 items-center justify-center rounded-md bg-[#0c2340] px-5 text-sm font-medium text-white hover:bg-[#16385f]">
+        <a href="/login" className="mt-6 inline-flex h-10 items-center justify-center rounded-md bg-[#0c2340] px-5 text-sm font-medium text-white hover:bg-[#16385f]">
           로그아웃
         </a>
       </section>

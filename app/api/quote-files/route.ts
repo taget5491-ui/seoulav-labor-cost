@@ -1,16 +1,12 @@
 import { env } from "cloudflare:workers";
-import { getChatGPTUser } from "@/app/chatgpt-auth";
-import { ensureAppUser } from "@/lib/app-users";
+import { getSessionUser } from "@/lib/password-auth";
 
 export const dynamic = "force-dynamic";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 async function currentUser() {
-  const identity = await getChatGPTUser();
-  if (identity) return ensureAppUser(identity);
-  if (process.env.NODE_ENV !== "production") return ensureAppUser({ userId: "local-preview", email: "preview@local", displayName: "로컬 미리보기" });
-  return null;
+  return getSessionUser();
 }
 
 function safeFilename(value: string) {

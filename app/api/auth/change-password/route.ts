@@ -1,0 +1,3 @@
+import { getD1 } from "@/db";
+import { getSessionUser, hashPassword } from "@/lib/password-auth";
+export async function POST(request: Request) { const user = await getSessionUser(); if (!user) return Response.json({ error: "로그인이 필요합니다." }, { status: 401 }); const { password } = await request.json() as { password?: string }; if (!password || password.length < 10) return Response.json({ error: "비밀번호는 10자 이상 입력해 주세요." }, { status: 400 }); await getD1().prepare("UPDATE app_users SET password_hash = ?, must_change_password = 0, updated_at = ? WHERE email = ?").bind(await hashPassword(password), new Date().toISOString(), user.email).run(); return Response.json({ ok: true }); }

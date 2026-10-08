@@ -1,0 +1,3 @@
+import { NextResponse } from "next/server";
+import { authenticate, createSession, SESSION_COOKIE } from "@/lib/password-auth";
+export async function POST(request: Request) { const body = await request.json() as { loginId?: string; password?: string }; const user = await authenticate(body.loginId || "", body.password || ""); if (!user) return NextResponse.json({ error: "아이디 또는 비밀번호가 올바르지 않습니다." }, { status: 401 }); const session = await createSession(user); const response = NextResponse.json({ ok: true, mustChangePassword: user.mustChangePassword }); response.cookies.set(SESSION_COOKIE, session.token, { httpOnly: true, secure: true, sameSite: "lax", path: "/", expires: session.expires }); return response; }

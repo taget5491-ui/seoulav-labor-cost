@@ -77,6 +77,15 @@ export const appUsers = sqliteTable("app_users", {
   displayName: text("display_name").notNull().default(""),
   role: text("role").notNull().default("user"),
   active: integer("active", { mode: "boolean" }).notNull().default(true),
+  passwordHash: text("password_hash").notNull().default(""),
+  mustChangePassword: integer("must_change_password", { mode: "boolean" }).notNull().default(true),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
+});
+
+export const userSessions = sqliteTable("user_sessions", {
+  tokenHash: text("token_hash").primaryKey(),
+  userEmail: text("user_email").notNull(),
+  expiresAt: text("expires_at").notNull(),
+  createdAt: text("created_at").notNull(),
 });
