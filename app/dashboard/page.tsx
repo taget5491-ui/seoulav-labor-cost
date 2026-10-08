@@ -44,5 +44,5 @@ export default async function DashboardPage() {
       baseRate: Number(entry.base_rate ?? 300000),
     })),
   }));
-  return <LaborDashboard displayName={user.displayName} isAdmin={user.role === "admin"} initialEstimates={initialEstimates} />;
+  return <LaborDashboard displayName={user.displayName} isAdmin={user.role === "admin"} canEdit={user.canEdit} initialEstimates={initialEstimates} />;
 }

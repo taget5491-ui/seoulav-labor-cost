@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { env } from "cloudflare:workers";
 import { getD1 } from "@/db";
 
-export type SessionUser = { userId: string; email: string; displayName: string; fullName: string | null; role: "admin" | "user"; active: boolean; mustChangePassword: boolean };
+export type SessionUser = { userId: string; email: string; displayName: string; fullName: string | null; role: "admin" | "user"; active: boolean; mustChangePassword: boolean; canEdit: boolean };
 export const SESSION_COOKIE = "labor_session";
 const encoder = new TextEncoder();
 
@@ -30,7 +30,7 @@ async function verifyPassword(password: string, stored: string) {
 }
 
 function mapUser(row: Record<string, unknown>): SessionUser {
-  return { userId: String(row.email), email: String(row.email), displayName: String(row.display_name || row.email), fullName: String(row.display_name || "") || null, role: row.role === "admin" ? "admin" : "user", active: Boolean(row.active), mustChangePassword: Boolean(row.must_change_password) };
+  return { userId: String(row.email), email: String(row.email), displayName: String(row.display_name || row.email), fullName: String(row.display_name || "") || null, role: row.role === "admin" ? "admin" : "user", active: Boolean(row.active), mustChangePassword: Boolean(row.must_change_password), canEdit: row.role === "admin" };
 }
 
 export async function authenticate(loginId: string, password: string) {

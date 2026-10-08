@@ -157,6 +157,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const user = await currentUser();
   if (!user) return Response.json({ error: "로그인이 필요합니다." }, { status: 401 });
+  if (!user.canEdit) return Response.json({ error: "입력·수정 권한이 필요합니다." }, { status: 403 });
   try {
     const input = estimateSchema.parse(await request.json());
     if (input.startDate && input.endDate && input.startDate > input.endDate) return Response.json({ error: "종료일은 시작일과 같거나 이후 날짜로 선택할 수 있습니다." }, { status: 400 });
@@ -215,6 +216,7 @@ export async function POST(request: Request) {
 export async function PATCH(request: Request) {
   const user = await currentUser();
   if (!user) return Response.json({ error: "로그인이 필요합니다." }, { status: 401 });
+  if (!user.canEdit) return Response.json({ error: "입력·수정 권한이 필요합니다." }, { status: 403 });
   try {
     const input = archiveSchema.parse(await request.json());
     const archivedAt = input.action === "archive" ? new Date().toISOString() : null;

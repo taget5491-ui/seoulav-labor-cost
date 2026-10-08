@@ -135,10 +135,12 @@ const companyLaborForEstimate = (item: Estimate, name: string) =>
 export function LaborDashboard({
   displayName,
   isAdmin,
+  canEdit,
   initialEstimates,
 }: {
   displayName: string;
   isAdmin: boolean;
+  canEdit: boolean;
   initialEstimates: Estimate[];
 }) {
   const items = initialEstimates;
@@ -1122,7 +1124,7 @@ export function LaborDashboard({
                           )}
                         </TableCell>
                         <TableCell className="text-center">
-                          {item.status === "closed" ? (
+                          {item.status === "closed" && canEdit ? (
                             <a
                               href={`/?edit=${encodeURIComponent(item.id)}`}
                               className="inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
