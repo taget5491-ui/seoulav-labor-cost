@@ -56,6 +56,7 @@ export const laborEntries = sqliteTable(
     additionalCost: integer("additional_cost").notNull().default(0),
     useBaseRate: integer("use_base_rate", { mode: "boolean" }).notNull().default(true),
     manualLaborAmount: integer("manual_labor_amount").notNull().default(0),
+    manualLaborEnabled: integer("manual_labor_enabled", { mode: "boolean" }).notNull().default(true),
     baseRate: integer("base_rate").notNull(),
     adminRate: real("admin_rate").notNull(),
     toolRate: real("tool_rate").notNull(),

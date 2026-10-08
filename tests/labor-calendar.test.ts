@@ -112,6 +112,20 @@ test("can exclude internal labor cost without changing internal work units", () 
   assert.equal(result.grandTotal, 0);
 });
 
+test("uses daily calculated labor when a manual company total is unchecked", () => {
+  const common = {
+    description: "공사일보 투입", workSite: "DSR", workDate: "2026-08-05", dayType: "weekday" as const,
+    days: 1, contractorName: "RTA", contractorQuoteAmount: 300_000, applyOverhead: true, additionalCost: 0,
+  };
+  const result = calculateEstimate([
+    { ...common, id: "daily", headcount: 2, contractorType: "rta" },
+    { ...common, id: "manual-off", description: "업체 노무비 직접입력", headcount: 1, contractorType: "direct", useBaseRate: false, manualLaborAmount: 1_500_000, manualLaborEnabled: false },
+  ]);
+  assert.equal(result.rows.find((row) => row.id === "daily")?.totalAmount, 678_000);
+  assert.equal(result.rows.find((row) => row.id === "manual-off")?.totalAmount, 0);
+  assert.equal(result.externalContractorAmount, 678_000);
+});
+
 test("handles lunar holidays and Korean substitute-holiday rules", () => {
   assert.equal(isKoreanPublicHoliday("2026-02-17"), true);
   assert.equal(isKoreanPublicHoliday("2026-05-24"), true);

@@ -21,6 +21,7 @@ const rowSchema = z.object({
   additionalCost: z.coerce.number().int().min(0).max(1_000_000_000).default(0),
   useBaseRate: z.boolean().default(true),
   manualLaborAmount: z.coerce.number().int().min(0).max(10_000_000_000).default(0),
+  manualLaborEnabled: z.boolean().default(true),
   baseRate: z.coerce.number().int().min(0).max(10_000_000).default(DEFAULT_RATES.baseRate),
 });
 const estimateSchema = z.object({
@@ -72,6 +73,7 @@ function mapEntry(entry: DbRow) {
     additionalCost: Number(entry.additional_cost ?? 0),
     useBaseRate: entry.use_base_rate === undefined ? true : Boolean(entry.use_base_rate),
     manualLaborAmount: Number(entry.manual_labor_amount ?? 0),
+    manualLaborEnabled: entry.manual_labor_enabled === undefined ? true : Boolean(entry.manual_labor_enabled),
     baseRate: Number(entry.base_rate ?? DEFAULT_RATES.baseRate),
   };
 }
@@ -198,11 +200,11 @@ export async function POST(request: Request) {
         `INSERT INTO labor_entries (
           id, estimate_id, description, work_site, work_date, day_type, headcount, days,
           contractor_type, contractor_name, contractor_quote_amount,
-          apply_overhead, additional_cost, use_base_rate, manual_labor_amount,
+          apply_overhead, additional_cost, use_base_rate, manual_labor_amount, manual_labor_enabled,
           base_rate, admin_rate, tool_rate, day_surcharge, base_amount, admin_amount,
           tool_amount, surcharge_amount, total_amount, sort_order
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).bind(crypto.randomUUID(), id, row.description, input.siteName, row.workDate, row.dayType, row.headcount, row.days, row.contractorType, row.contractorType === "self" ? "" : row.contractorName, row.contractorQuoteAmount, row.applyOverhead ? 1 : 0, row.additionalCost, row.useBaseRate ? 1 : 0, row.manualLaborAmount, row.baseRate, DEFAULT_RATES.adminRate, DEFAULT_RATES.toolRate, row.daySurcharge, row.baseAmount, row.adminAmount, row.toolAmount, row.surchargeAmount, row.totalAmount, index)),
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(crypto.randomUUID(), id, row.description, input.siteName, row.workDate, row.dayType, row.headcount, row.days, row.contractorType, row.contractorType === "self" ? "" : row.contractorName, row.contractorQuoteAmount, row.applyOverhead ? 1 : 0, row.additionalCost, row.useBaseRate ? 1 : 0, row.manualLaborAmount, row.manualLaborEnabled === false ? 0 : 1, row.baseRate, DEFAULT_RATES.adminRate, DEFAULT_RATES.toolRate, row.daySurcharge, row.baseAmount, row.adminAmount, row.toolAmount, row.surchargeAmount, row.totalAmount, index)),
     ];
     await db.batch(statements);
     return Response.json({ id, groupId, version, totalAmount: calculation.grandTotal });

@@ -16,6 +16,7 @@ export type LaborRow = {
   additionalCost: number;
   useBaseRate?: boolean;
   manualLaborAmount?: number;
+  manualLaborEnabled?: boolean;
   baseRate?: number;
 };
 
@@ -199,7 +200,7 @@ export function calculateRow(row: LaborRow, rates = DEFAULT_RATES) {
   const useBaseRate = row.useBaseRate !== false;
   const units = useBaseRate ? headcount * days : 0;
   const contractorQuoteAmount = Math.max(0, Math.round(Number(row.contractorQuoteAmount) || 0));
-  const manualLaborAmount = Math.max(0, Math.round(Number(row.manualLaborAmount) || 0));
+  const manualLaborAmount = row.manualLaborEnabled === false ? 0 : Math.max(0, Math.round(Number(row.manualLaborAmount) || 0));
   const baseRate = dailyRateForRow(row, rates);
   const baseAmount = useBaseRate ? Math.round(units * baseRate) : manualLaborAmount;
   const policy = contractorCostPolicy(row, rates);
@@ -242,7 +243,7 @@ export function calculateEstimate(
   const contractorKey = (row: Pick<LaborRow, "contractorType" | "contractorName">) =>
     (row.contractorName || CONTRACTOR_TYPE_LABELS[row.contractorType] || "").replace(/\s+/g, "").toLocaleLowerCase("ko-KR");
   const manualOverrideCompanies = new Set(rows
-    .filter((row) => row.contractorType !== "self" && row.useBaseRate === false && Number(row.manualLaborAmount || 0) > 0)
+    .filter((row) => row.contractorType !== "self" && row.useBaseRate === false && row.manualLaborEnabled !== false && Number(row.manualLaborAmount || 0) > 0)
     .map(contractorKey)
     .filter(Boolean));
   const calculatedRows = rows.map((row) => {

@@ -1,0 +1,1 @@
+ALTER TABLE `labor_entries` ADD `manual_labor_enabled` integer DEFAULT true NOT NULL;
