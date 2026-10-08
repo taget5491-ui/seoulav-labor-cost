@@ -238,7 +238,28 @@ export function calculateEstimate(
   internalHeadcount = 0,
   internalDays = 0,
 ) {
-  const calculatedRows = rows.map((row) => ({ ...row, ...calculateRow(row, rates) }));
+  const contractorKey = (row: Pick<LaborRow, "contractorType" | "contractorName">) =>
+    (row.contractorName || CONTRACTOR_TYPE_LABELS[row.contractorType] || "").replace(/\s+/g, "").toLocaleLowerCase("ko-KR");
+  const manualOverrideCompanies = new Set(rows
+    .filter((row) => row.contractorType !== "self" && row.useBaseRate === false && Number(row.manualLaborAmount || 0) > 0)
+    .map(contractorKey)
+    .filter(Boolean));
+  const calculatedRows = rows.map((row) => {
+    const calculated = calculateRow(row, rates);
+    const overriddenByManualAmount = row.contractorType !== "self" && row.useBaseRate !== false && manualOverrideCompanies.has(contractorKey(row));
+    return overriddenByManualAmount ? {
+      ...row,
+      ...calculated,
+      baseAmount: 0,
+      adminAmount: 0,
+      toolAmount: 0,
+      mealAmount: 0,
+      surchargeAmount: 0,
+      additionalCost: 0,
+      totalAmount: 0,
+      overriddenByManualAmount: true,
+    } : { ...row, ...calculated, overriddenByManualAmount: false };
+  });
   const totals = calculatedRows.reduce(
     (sum, row) => ({
       units: sum.units + row.units,

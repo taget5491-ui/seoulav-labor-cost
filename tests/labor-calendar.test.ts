@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { calculateRow, dayTypeFromDate, isKoreanPublicHoliday, requiresCustomDailyRate, weekdayLabel } from "../lib/labor.ts";
+import { calculateEstimate, calculateRow, dayTypeFromDate, isKoreanPublicHoliday, requiresCustomDailyRate, weekdayLabel } from "../lib/labor.ts";
 
 test("classifies Korean weekends and public holidays", () => {
   assert.equal(dayTypeFromDate("2026-08-05"), "weekday");
@@ -81,6 +81,23 @@ test("uses a custom entered rate for other companies and exempts named companies
   assert.equal(requiresCustomDailyRate("DS천안", "에스큐브랩"), false);
   assert.equal(requiresCustomDailyRate("DS온양", "VSEnt"), false);
   assert.equal(requiresCustomDailyRate("사외", "일리스"), false);
+});
+
+test("prefers a manually entered company total while preserving daily headcount units", () => {
+  const common = {
+    description: "공사일보 투입", workSite: "DSR", workDate: "2026-08-05", dayType: "weekday" as const,
+    days: 1, contractorName: "RTA", contractorQuoteAmount: 300_000, applyOverhead: true, additionalCost: 0,
+  };
+  const result = calculateEstimate([
+    { ...common, id: "daily-1", headcount: 3, contractorType: "rta" },
+    { ...common, id: "daily-2", workDate: "2026-08-06", headcount: 2, contractorType: "rta" },
+    { ...common, id: "manual", description: "업체 노무비 직접입력", headcount: 1, contractorType: "direct", useBaseRate: false, manualLaborAmount: 1_500_000 },
+  ]);
+  assert.equal(result.units, 5);
+  assert.equal(result.externalContractorAmount, 1_500_000);
+  assert.equal(result.rows.find((row) => row.id === "daily-1")?.totalAmount, 0);
+  assert.equal(result.rows.find((row) => row.id === "daily-2")?.totalAmount, 0);
+  assert.equal(result.rows.find((row) => row.id === "manual")?.totalAmount, 1_500_000);
 });
 
 test("handles lunar holidays and Korean substitute-holiday rules", () => {

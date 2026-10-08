@@ -732,7 +732,7 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
                         </TableCell>
                         <TableCell><Input className="min-w-[76px] px-2 text-center font-medium" type="number" min="1" max="100" value={row.headcount} onChange={(event) => updateRow(row.id, { headcount: Number(event.target.value) })} aria-label="투입 인원" /></TableCell>
                         <TableCell><Input className="min-w-[76px] px-2 text-center font-medium" type="number" min="0.5" step="0.5" value={row.days} onChange={(event) => updateRow(row.id, { days: Number(event.target.value) })} aria-label="작업일수" /></TableCell>
-                        <TableCell className="text-right font-semibold tabular-nums">{formatWon(row.totalAmount)}</TableCell>
+                        <TableCell className="text-right font-semibold tabular-nums">{row.overriddenByManualAmount ? <span className="whitespace-nowrap text-xs text-cyan-700" title="상단 업체 노무비 직접입력 금액을 우선 적용합니다.">직접입력 적용</span> : formatWon(row.totalAmount)}</TableCell>
                         <TableCell><Button variant="ghost" size="icon-sm" aria-label="작업 삭제" disabled={rows.length === 1} onClick={() => setRows((current) => current.filter((item) => item.id !== row.id))}><Trash2 className="text-slate-500" /></Button></TableCell>
                       </TableRow>
                     ))}
