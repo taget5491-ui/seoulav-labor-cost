@@ -928,9 +928,9 @@ export function LaborDashboard({
                       선택 사이트: {detailSite} · 견적 노무비 총합 {formatWon(detailSummary.quoted)} · 실제 노무비 총합 {formatWon(detailSummary.actual)}
                     </p>
                   )}
-                  {detailScope === "overall" && (
+                  {(detailScope === "monthly" || detailScope === "overall") && (
                     <p className="mt-1 text-base font-semibold text-cyan-700">
-                      전체 · 견적 노무비 총합 {formatWon(detailSummary.quoted)} · 실제 노무비 총합 {formatWon(detailSummary.actual)} · 차액 <span className={detailDifference < 0 ? "text-red-600" : "text-cyan-700"}>{detailDifference > 0 ? "+" : ""}{formatWon(detailDifference)}</span> · 집행률 {detailSummary.rate.toFixed(1)}%
+                      {detailScope === "monthly" ? `${selectedMonth} 월별` : "전체"} · 견적 노무비 총합 {formatWon(detailSummary.quoted)} · 실제 노무비 총합 {formatWon(detailSummary.actual)} · 차액 <span className={detailDifference < 0 ? "text-red-600" : "text-cyan-700"}>{detailDifference > 0 ? "+" : ""}{formatWon(detailDifference)}</span> · 집행률 {detailSummary.rate.toFixed(1)}%
                     </p>
                   )}
                 </div>
@@ -943,7 +943,7 @@ export function LaborDashboard({
                   <Button
                     size="sm"
                     variant={detailScope === "monthly" ? "default" : "ghost"}
-                    onClick={() => setDetailScope("monthly")}
+                    onClick={() => { setDetailScope("monthly"); setDetailCompany(ALL); }}
                   >
                     월별
                   </Button>
