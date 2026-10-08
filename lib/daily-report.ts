@@ -200,6 +200,11 @@ export function candidateDayType(candidate: DailyReportLaborCandidate) {
   return dayTypeFromDate(candidate.workDate);
 }
 
+export function reportDateRange(dates: string[]) {
+  const sorted = [...new Set(dates.filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date)))].sort();
+  return { startDate: sorted[0] ?? "", endDate: sorted.at(-1) ?? "" };
+}
+
 export function planDailyReportImport(
   candidates: DailyReportLaborCandidate[],
   actions: Record<string, DailyReportCandidateAction>,

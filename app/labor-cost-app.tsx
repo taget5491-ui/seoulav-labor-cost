@@ -17,7 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { extractDirectCostLabor, type LaborExtractionResult } from "@/lib/pdf-labor";
-import { candidateDayType, planDailyReportImport } from "@/lib/daily-report";
+import { candidateDayType, planDailyReportImport, reportDateRange } from "@/lib/daily-report";
 import {
   calculateEstimate,
   CONTRACTOR_TYPE_LABELS,
@@ -345,8 +345,9 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
 
     setProjectName(extraction.projectName || projectName);
     setWorkSite(extraction.inferredSiteName || workSite);
-    setStartDate(extraction.startDate || startDate);
-    setEndDate(extraction.endDate || endDate);
+    const reportRange = reportDateRange([...extraction.laborCandidates.map((candidate) => candidate.workDate), extraction.reportDate]);
+    setStartDate(reportRange.startDate || startDate);
+    setEndDate(reportRange.endDate || endDate);
     const importPlan = planDailyReportImport(extraction.laborCandidates, actions);
     setRows((current) => {
       const isInitialPlaceholder = current.length === 1 && !sourceGroupId

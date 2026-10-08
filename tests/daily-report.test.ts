@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { normalizeCompany, parseDailyReport, planDailyReportImport } from "../lib/daily-report.ts";
+import { normalizeCompany, parseDailyReport, planDailyReportImport, reportDateRange } from "../lib/daily-report.ts";
 import type { PositionedPdfText } from "../types/daily-report.ts";
 
 function line(y: number, entries: Array<[number, string]>): PositionedPdfText[] {
@@ -59,4 +59,9 @@ test("uses the date after 작성일자 instead of the construction start date", 
     { contractorType: "rta", headcount: 2 },
     { contractorType: "self", headcount: 3 },
   ]);
+});
+
+test("uses the earliest and latest daily report dates as the project period", () => {
+  assert.deepEqual(reportDateRange(["2026-08-12"]), { startDate: "2026-08-12", endDate: "2026-08-12" });
+  assert.deepEqual(reportDateRange(["2026-08-14", "2026-08-12", "2026-08-13", "2026-08-12"]), { startDate: "2026-08-12", endDate: "2026-08-14" });
 });
