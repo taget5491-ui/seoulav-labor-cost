@@ -161,6 +161,14 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
     () => calculateEstimate(rows, extraCosts, DEFAULT_RATES),
     [rows, extraCosts],
   );
+  const externalLaborBreakdown = useMemo(() => {
+    const totals = new Map<string, number>();
+    result.rows.filter((row) => row.contractorType !== "self").forEach((row) => {
+      const name = row.contractorName.trim() || CONTRACTOR_TYPE_LABELS[row.contractorType] || "업체 미지정";
+      totals.set(name, (totals.get(name) ?? 0) + row.totalAmount);
+    });
+    return [...totals].map(([name, amount]) => ({ name, amount })).sort((a, b) => b.amount - a.amount || a.name.localeCompare(b.name, "ko"));
+  }, [result.rows]);
 
   const isLocked = Boolean(sourceGroupId && ["confirmed", "closed"].includes(status) && !allowLockedRevision);
   const filteredSaved = useMemo(() => saved.filter((estimate) => {
@@ -748,7 +756,7 @@ export function LaborCostApp({ displayName }: { displayName: string }) {
               <CardContent className="space-y-4 pt-5">
                 <div className="grid grid-cols-2 gap-3"><SummaryMetric icon={<Users />} label="총 공수" value={`${result.units.toLocaleString("ko-KR")}인일`} /><SummaryMetric icon={<CalendarDays />} label="작업 항목" value={`${rows.length}건`} /></div>
                 <div className="space-y-2.5 border-t border-white/10 pt-4 text-sm"><SummaryLine label="공통 추가 비용" value={result.extraCosts} /></div>
-                <div className="border-t border-white/15 pt-4"><p className="text-sm text-slate-300">실제 투입 노무비</p><p className="mt-1 text-2xl font-semibold tracking-tight text-cyan-300 tabular-nums">{formatWon(result.grandTotal)}</p><div className="mt-2 space-y-1 text-xs text-slate-300"><p>공무기술팀 총액 {formatWon(result.internalLaborAmount)}</p><p>그 외 업체 총액 {formatWon(result.externalContractorAmount)}</p><p>추가 비용 포함 총액 {formatWon(result.totalCost)}</p></div></div>
+                <div className="border-t border-white/15 pt-4"><p className="text-sm text-slate-300">실제 투입 노무비</p><p className="mt-1 text-2xl font-semibold tracking-tight text-cyan-300 tabular-nums">{formatWon(result.grandTotal)}</p><div className="mt-2 space-y-1 text-xs text-slate-300"><p>공무기술팀 총액 {formatWon(result.internalLaborAmount)}</p>{externalLaborBreakdown.map((company) => <p key={company.name}>{company.name} 총액 {formatWon(company.amount)}</p>)}<p>추가 비용 포함 총액 {formatWon(result.totalCost)}</p></div></div>
               </CardContent>
             </Card>
             <Card className="border-slate-200 shadow-sm"><CardHeader><CardTitle className="text-base">업체별 집계 기준</CardTitle></CardHeader><CardContent className="space-y-3 text-sm"><div className="flex items-center justify-between gap-4"><span className="text-slate-600">기본 일당</span><span className="font-medium tabular-nums">{formatWon(INTERNAL_LABOR_RATE)} / 인일</span></div><div className="space-y-1.5 border-t border-slate-100 pt-3 text-xs leading-5"><p><span className="font-semibold">공무기술팀</span> · 요일·관리비 가산 없이 30만원 고정</p><p><span className="font-semibold">VSEnt</span> · 관리비 15%</p><p><span className="font-semibold">RTA</span> · 관리비 10% + 공구 3%</p><p><span className="font-semibold">코어워커</span> · 관리비 10% + 공구 3% + 식대 1만원/인일</p></div><div className="flex items-center justify-between gap-4 whitespace-nowrap border-t border-slate-100 pt-3"><span className="text-slate-600">외부업체 요일 가산</span><span className="font-medium">토 5만원 · 휴일 10만원 / 인일</span></div></CardContent></Card>
