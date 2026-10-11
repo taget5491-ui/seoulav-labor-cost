@@ -1,13 +1,11 @@
 import { getD1 } from "@/db";
-import { requireSessionUser } from "@/lib/password-auth";
-import { redirect } from "next/navigation";
+import { getSessionUser } from "@/lib/password-auth";
 import { LaborDashboard } from "./labor-dashboard";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const user = await requireSessionUser("/dashboard");
-  if (!user) redirect("/access-denied");
+  const user = await getSessionUser();
   const db = getD1();
   const estimates = await db.prepare(
     `SELECT e.* FROM estimates e
@@ -44,5 +42,5 @@ export default async function DashboardPage() {
       baseRate: Number(entry.base_rate ?? 300000),
     })),
   }));
-  return <LaborDashboard displayName={user.displayName} isAdmin={user.role === "admin"} canEdit={user.canEdit} initialEstimates={initialEstimates} />;
+  return <LaborDashboard displayName={user?.displayName ?? "방문자"} isAuthenticated={Boolean(user)} isAdmin={user?.role === "admin"} canEdit={Boolean(user?.canEdit)} initialEstimates={initialEstimates} />;
 }

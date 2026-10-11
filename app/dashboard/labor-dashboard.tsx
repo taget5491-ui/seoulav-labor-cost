@@ -134,11 +134,13 @@ const companyLaborForEstimate = (item: Estimate, name: string) =>
 
 export function LaborDashboard({
   displayName,
+  isAuthenticated,
   isAdmin,
   canEdit,
   initialEstimates,
 }: {
   displayName: string;
+  isAuthenticated: boolean;
   isAdmin: boolean;
   canEdit: boolean;
   initialEstimates: Estimate[];
@@ -455,12 +457,12 @@ export function LaborDashboard({
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <a
+            {canEdit && <a
               href="/"
               className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-white/25 bg-white/10 px-4 text-sm font-medium text-white transition-colors hover:bg-white/20"
             >
               <ArrowLeft className="size-4" /> 산정 화면
-            </a>
+            </a>}
             {isAdmin && (
               <a
                 href="/admin"
@@ -469,7 +471,8 @@ export function LaborDashboard({
                 <ShieldCheck className="size-4" /> 계정 관리
               </a>
             )}
-            <LogoutButton />
+            {isAdmin && <a href="/change-password" className="inline-flex h-9 shrink-0 items-center justify-center rounded-md border border-white/25 bg-white/10 px-3 text-sm font-medium text-white transition-colors hover:bg-white/20">비밀번호 변경</a>}
+            {isAuthenticated ? <LogoutButton /> : <a href="/login?return_to=/" className="inline-flex h-9 shrink-0 items-center justify-center rounded-md border border-white/25 bg-white/10 px-4 text-sm font-medium text-white transition-colors hover:bg-white/20">관리자 로그인</a>}
             <div className="hidden text-right sm:block">
               <p className="text-sm">{displayName}</p>
               <p className="text-xs text-slate-300">사용자</p>

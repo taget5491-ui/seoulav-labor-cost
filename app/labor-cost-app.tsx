@@ -637,6 +637,7 @@ export function LaborCostApp({ displayName, isAdmin }: { displayName: string; is
             {/* Full document navigation avoids the hosted runtime's broken RSC prefetch path. */}
             <a href="/dashboard" className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-white/25 bg-white/10 px-4 text-sm font-medium text-white transition-colors hover:bg-white/20"><LayoutDashboard className="size-4" /> 통합 대시보드</a>
             {isAdmin && <a href="/admin" className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-white/25 bg-white/10 px-4 text-sm font-medium text-white transition-colors hover:bg-white/20"><ShieldCheck className="size-4" /> 계정 관리</a>}
+            {isAdmin && <a href="/change-password" className="inline-flex h-9 shrink-0 items-center justify-center rounded-md border border-white/25 bg-white/10 px-3 text-sm font-medium text-white transition-colors hover:bg-white/20">비밀번호 변경</a>}
             <LogoutButton />
             <div className="hidden text-right sm:block"><p className="text-sm">{displayName}</p><p className="text-xs text-slate-300">작성자</p></div>
           </div>

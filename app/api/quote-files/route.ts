@@ -39,8 +39,6 @@ export async function POST(request: Request) {
 }
 
 export async function GET(request: Request) {
-  const user = await currentUser();
-  if (!user) return Response.json({ error: "로그인이 필요합니다." }, { status: 401 });
   if (!env.BUCKET) return Response.json({ error: "파일 저장소에 연결할 수 없습니다." }, { status: 503 });
 
   try {
