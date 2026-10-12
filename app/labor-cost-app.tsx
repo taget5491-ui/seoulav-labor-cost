@@ -636,6 +636,7 @@ export function LaborCostApp({ displayName, isAdmin }: { displayName: string; is
           <div className="flex items-center gap-3">
             {/* Full document navigation avoids the hosted runtime's broken RSC prefetch path. */}
             <a href="/dashboard" className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-white/25 bg-white/10 px-4 text-sm font-medium text-white transition-colors hover:bg-white/20"><LayoutDashboard className="size-4" /> 통합 대시보드</a>
+            <a href="/schedule" className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-white/25 bg-white/10 px-4 text-sm font-medium text-white transition-colors hover:bg-white/20"><CalendarDays className="size-4" /> 연간 일정</a>
             {isAdmin && <a href="/admin" className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-white/25 bg-white/10 px-4 text-sm font-medium text-white transition-colors hover:bg-white/20"><ShieldCheck className="size-4" /> 계정 관리</a>}
             {isAdmin && <a href="/change-password" className="inline-flex h-9 shrink-0 items-center justify-center rounded-md border border-white/25 bg-white/10 px-3 text-sm font-medium text-white transition-colors hover:bg-white/20">비밀번호 변경</a>}
             <LogoutButton />

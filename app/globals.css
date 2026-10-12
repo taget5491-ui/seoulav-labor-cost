@@ -117,6 +117,12 @@ textarea {
     background: #ffffff;
   }
 
+  .annual-scroll {
+    overflow: visible !important;
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+
   .no-print {
     display: none !important;
   }
