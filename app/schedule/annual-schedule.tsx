@@ -38,7 +38,7 @@ export function AnnualSchedule({ projects, displayName, isAdmin }: { projects: S
     projects.forEach((item) => { values.add(Number(item.startDate.slice(0, 4))); values.add(Number(item.endDate.slice(0, 4))); });
     return [...values].filter(Number.isFinite).sort((a, b) => b - a);
   }, [projects]);
-  const [year, setYear] = useState(availableYears[0]);
+  const [year, setYear] = useState(new Date().getFullYear());
   const [site, setSite] = useState(ALL);
   const [company, setCompany] = useState(ALL);
   const [status, setStatus] = useState(ALL);
@@ -46,12 +46,13 @@ export function AnnualSchedule({ projects, displayName, isAdmin }: { projects: S
   const [selected, setSelected] = useState<ScheduleProject | null>(null);
   const scheduleScrollRef = useRef<HTMLElement>(null);
   const fixedScrollRef = useRef<HTMLDivElement>(null);
+  const didInitialMonthScroll = useRef(false);
   const [scrollWidth, setScrollWidth] = useState(0);
   const months = useMemo(() => Array.from({ length: 12 }, (_, month) => ({ month, count: daysInMonth(year, month) })), [year]);
   const days = useMemo(() => months.flatMap(({ month, count }) => Array.from({ length: count }, (_, index) => isoDate(year, month, index + 1))), [months, year]);
   const sites = useMemo(() => [...new Set(projects.map((item) => item.siteName))].sort((a, b) => a.localeCompare(b, "ko")), [projects]);
   const companies = useMemo(() => [...new Set(projects.map((item) => item.companyName).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ko")), [projects]);
-  const visible = useMemo(() => projects.filter((item) => item.startDate <= `${year}-12-31` && item.endDate >= `${year}-01-01` && (site === ALL || item.siteName === site) && (company === ALL || item.companyName === company) && (status === ALL || (status === "closed" ? item.status === "closed" : item.status !== "closed")) && [item.projectName, item.siteName, item.companyName, item.managerName].join(" ").toLowerCase().includes(search.trim().toLowerCase())).sort((a, b) => a.siteName.localeCompare(b.siteName, "ko") || a.startDate.localeCompare(b.startDate)), [company, projects, search, site, status, year]);
+  const visible = useMemo(() => projects.filter((item) => item.startDate <= `${year}-12-31` && item.endDate >= `${year}-01-01` && (site === ALL || item.siteName === site) && (company === ALL || item.companyName === company) && (status === ALL || (status === "closed" ? item.status === "closed" : item.status !== "closed")) && [item.projectName, item.siteName, item.companyName, item.managerName].join(" ").toLowerCase().includes(search.trim().toLowerCase())).sort((a, b) => Number(a.status === "closed") - Number(b.status === "closed") || a.startDate.localeCompare(b.startDate) || a.siteName.localeCompare(b.siteName, "ko")), [company, projects, search, site, status, year]);
   const difference = selected ? selected.quotedLaborAmount - selected.actualLaborAmount : 0;
   const executionRate = selected?.quotedLaborAmount ? selected.actualLaborAmount / selected.quotedLaborAmount * 100 : 0;
 
@@ -66,18 +67,32 @@ export function AnnualSchedule({ projects, displayName, isAdmin }: { projects: S
     return () => observer.disconnect();
   }, [days.length, visible.length]);
 
+  useEffect(() => {
+    const now = new Date();
+    if (didInitialMonthScroll.current || year !== now.getFullYear() || !scrollWidth) return;
+    const schedule = scheduleScrollRef.current;
+    if (!schedule) return;
+    const offset = Array.from({ length: now.getMonth() }, (_, month) => daysInMonth(year, month)).reduce((sum, count) => sum + count, 0) * DAY_WIDTH;
+    const frame = requestAnimationFrame(() => {
+      schedule.scrollLeft = offset;
+      if (fixedScrollRef.current) fixedScrollRef.current.scrollLeft = offset;
+      didInitialMonthScroll.current = true;
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [scrollWidth, year]);
+
   const syncScroll = (source: HTMLElement, target: HTMLElement | null) => {
     if (target && Math.abs(target.scrollLeft - source.scrollLeft) > 1) target.scrollLeft = source.scrollLeft;
   };
 
   return <div className="min-h-screen bg-[#f4f7fb] text-slate-900">
     <header className="no-print border-b border-slate-200 bg-[#0c2340] text-white shadow-sm">
-      <div className="mx-auto flex max-w-[1900px] items-center justify-between gap-4 px-5 py-4 lg:px-8">
+      <div className="flex w-full items-center justify-between gap-4 px-4 py-4 lg:px-6">
         <div className="flex items-center gap-3"><div className="grid size-10 place-items-center rounded-xl bg-cyan-400 text-[#0c2340]"><CalendarRange className="size-5" /></div><div><p className="text-lg font-semibold">연간 공사 일정</p><p className="text-xs text-slate-300">1월부터 12월까지 전체 일정</p></div></div>
         <div className="flex items-center gap-2"><a href="/dashboard" className="inline-flex h-9 items-center gap-2 rounded-md border border-white/25 bg-white/10 px-4 text-sm font-medium hover:bg-white/20"><LayoutDashboard className="size-4" /> 통합 대시보드</a>{isAdmin && <a href="/" className="inline-flex h-9 items-center gap-2 rounded-md border border-white/25 bg-white/10 px-4 text-sm font-medium hover:bg-white/20"><ArrowLeft className="size-4" /> 산정 화면</a>}{isAdmin ? <LogoutButton /> : <a href="/login?return_to=/schedule" className="inline-flex h-9 items-center rounded-md border border-white/25 bg-white/10 px-4 text-sm font-medium hover:bg-white/20">관리자 로그인</a>}<div className="hidden text-right sm:block"><p className="text-sm">{displayName}</p><p className="text-xs text-slate-300">{isAdmin ? "관리자" : "조회"}</p></div></div>
       </div>
     </header>
-    <main className="mx-auto max-w-[1900px] px-4 py-6 lg:px-8">
+    <main className="w-full max-w-none px-2 py-6 lg:px-4">
       <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
         <div><p className="text-sm font-medium text-cyan-700">YEARLY SCHEDULE</p><h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">{year}년 공사 일정표</h1><p className="mt-1 text-sm text-slate-500">공사명을 누르면 건별 노무비 현황을 확인할 수 있습니다.</p></div>
         <div className="no-print flex flex-wrap gap-2"><Select value={String(year)} onValueChange={(value) => setYear(Number(value))}><SelectTrigger className="w-28 bg-white"><SelectValue /></SelectTrigger><SelectContent>{availableYears.map((item) => <SelectItem key={item} value={String(item)}>{item}년</SelectItem>)}</SelectContent></Select><div className="relative"><Search className="absolute left-3 top-2.5 size-4 text-slate-400" /><Input className="w-64 bg-white pl-9" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="공사명 검색" /></div><Button variant="outline" onClick={() => window.print()}><Printer /> PDF 출력</Button></div>
@@ -91,7 +106,7 @@ export function AnnualSchedule({ projects, displayName, isAdmin }: { projects: S
       </section>
     </main>
 
-    <div ref={fixedScrollRef} onScroll={(event) => syncScroll(event.currentTarget, scheduleScrollRef.current)} className="no-print fixed inset-x-4 bottom-0 z-50 overflow-x-auto overflow-y-hidden rounded-t-lg border border-b-0 border-slate-300 bg-white/95 shadow-[0_-4px_12px_rgba(15,23,42,0.12)] lg:inset-x-8" style={{ height: 18 }} aria-label="연간 일정 가로 스크롤"><div style={{ width: scrollWidth, height: 1 }} /></div>
+    <div ref={fixedScrollRef} onScroll={(event) => syncScroll(event.currentTarget, scheduleScrollRef.current)} className="no-print fixed inset-x-2 bottom-0 z-50 overflow-x-auto overflow-y-hidden rounded-t-lg border border-b-0 border-slate-300 bg-white/95 shadow-[0_-4px_12px_rgba(15,23,42,0.12)] lg:inset-x-4" style={{ height: 18 }} aria-label="연간 일정 가로 스크롤"><div style={{ width: scrollWidth, height: 1 }} /></div>
 
     <Dialog open={Boolean(selected)} onOpenChange={(open) => !open && setSelected(null)}>
       <DialogContent className="max-h-[85vh] sm:max-w-4xl overflow-y-auto">
