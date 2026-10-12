@@ -1,7 +1,7 @@
 "use client";
 /* eslint-disable @next/next/no-html-link-for-pages */
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import {
   ArrowLeft,
   BarChart3,
@@ -29,6 +29,7 @@ import { toast } from "sonner";
 import { LogoutButton } from "@/app/logout-button";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   ChartContainer,
   ChartTooltip,
@@ -158,6 +159,7 @@ export function LaborDashboard({
     "monthly" | "overall" | "site" | "company"
   >("monthly");
   const [companyDetailsOpen, setCompanyDetailsOpen] = useState(false);
+  const [internalOnlyCompanies, setInternalOnlyCompanies] = useState(false);
   const [summaryScope, setSummaryScope] = useState<"monthly" | "overall">(
     "monthly",
   );
@@ -287,10 +289,26 @@ export function LaborDashboard({
     () => aggregateCompanies(monthlyItems),
     [monthlyItems],
   );
+  const internalOnlyItems = useMemo(
+    () =>
+      filtered.filter(
+        (item) =>
+          item.entries.some((row) => row.contractorType === "self") &&
+          item.entries.every((row) => row.contractorType === "self"),
+      ),
+    [filtered],
+  );
+  const overallCompanies = useMemo(
+    () =>
+      aggregateCompanies(
+        internalOnlyCompanies ? internalOnlyItems : filtered,
+      ),
+    [filtered, internalOnlyCompanies, internalOnlyItems],
+  );
   const activeSummary = summaryScope === "monthly" ? monthlySummary : summaries;
   const activeSites = summaryScope === "monthly" ? monthlySites : siteData;
   const activeCompanies =
-    summaryScope === "monthly" ? monthlyCompanies : companyData;
+    summaryScope === "monthly" ? monthlyCompanies : overallCompanies;
   const detailSites = useMemo(
     () =>
       [...new Set(filtered.map((item) => item.siteName || "미지정"))].sort(),
@@ -699,6 +717,19 @@ export function LaborDashboard({
                 title={`${summaryScope === "monthly" ? "월별" : "전체"} 업체별 노무비와 공사 수`}
                 rows={activeCompanies}
                 kind="company"
+                action={
+                  summaryScope === "overall" ? (
+                    <label className="no-print flex cursor-pointer items-center gap-2 text-xs font-medium text-slate-600">
+                      <Checkbox
+                        checked={internalOnlyCompanies}
+                        onCheckedChange={(checked) =>
+                          setInternalOnlyCompanies(checked === true)
+                        }
+                      />
+                      공무기술팀만 투입된 공사
+                    </label>
+                  ) : undefined
+                }
               />
             </div>
           </section>
@@ -1253,6 +1284,7 @@ function SummaryPanel({
   title,
   rows,
   kind,
+  action,
 }: {
   title: string;
   rows: Array<{
@@ -1263,12 +1295,16 @@ function SummaryPanel({
     actual?: number;
   }>;
   kind: "site" | "company";
+  action?: ReactNode;
 }) {
   const chartRows = rows.slice(0, 8);
   return (
     <Card className="border-white bg-white/90 shadow-sm">
       <CardHeader>
-        <CardTitle className="text-base">{title}</CardTitle>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <CardTitle className="text-base">{title}</CardTitle>
+          {action}
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
         {chartRows.length ? (
