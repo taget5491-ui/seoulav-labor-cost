@@ -803,6 +803,19 @@ export function LaborCostApp({ displayName, isAdmin }: { displayName: string; is
           {closedCostData.length > 0 && <Card className="border-slate-200 shadow-sm"><CardHeader><CardTitle className="text-base">종료 공사 견적 대비 실제 노무비</CardTitle><p className="text-sm text-slate-500">기준일이 가장 최근인 종료 공사 3건만 표시합니다. 전체 종료 공사는 통합 대시보드에서 확인하세요.</p></CardHeader><CardContent><CostComparisonChart data={closedCostData} /></CardContent></Card>}
 
           {filteredSaved.length > 0 && (
+            filteredSaved.length > 3 ? (
+              <Card className="border-slate-200 shadow-sm">
+                <CardHeader className="pb-2"><CardTitle className="text-base">작성 중인 공사 목록 <span className="ml-1 text-sm font-normal text-slate-500">{filteredSaved.length}건</span></CardTitle></CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto rounded-lg border border-slate-200">
+                    <Table>
+                      <TableHeader><TableRow><TableHead>공사명</TableHead><TableHead>사이트</TableHead><TableHead>담당</TableHead><TableHead>상태</TableHead><TableHead>기준일</TableHead><TableHead className="text-right">실제 노무비</TableHead><TableHead className="w-24 text-right">관리</TableHead></TableRow></TableHeader>
+                      <TableBody>{filteredSaved.map((estimate) => <TableRow key={estimate.id} onClick={() => openEstimate(estimate)} className={`cursor-pointer hover:bg-cyan-50 ${estimate.archivedAt ? "opacity-60" : ""}`}><TableCell className="max-w-72 font-medium"><span className="block truncate">{estimate.projectName}</span></TableCell><TableCell>{estimate.siteName || estimate.entries[0]?.workSite || "미입력"}</TableCell><TableCell>{estimate.managerName || "미입력"}</TableCell><TableCell><span className={`whitespace-nowrap rounded-md px-2 py-1 text-xs ${STATUS_STYLES[estimate.status]}`}>{STATUS_LABELS[estimate.status]}</span></TableCell><TableCell className="whitespace-nowrap">{estimateReferenceDate(estimate)}</TableCell><TableCell className="whitespace-nowrap text-right font-medium tabular-nums">{formatWon(estimate.totalAmount)}</TableCell><TableCell className="text-right"><Button variant="ghost" size="sm" onClick={(event) => { event.stopPropagation(); void changeArchive(estimate); }}><Archive />{estimate.archivedAt ? "복원" : "보관"}</Button></TableCell></TableRow>)}</TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
               {filteredSaved.map((estimate) => (
                 <div key={estimate.id} className={`rounded-xl border bg-white p-4 shadow-sm ${estimate.archivedAt ? "border-dashed border-slate-300 opacity-70" : "border-slate-200"}`}>
@@ -818,6 +831,7 @@ export function LaborCostApp({ displayName, isAdmin }: { displayName: string; is
                 </div>
               ))}
             </div>
+            )
           )}
         </section>
       </main>
