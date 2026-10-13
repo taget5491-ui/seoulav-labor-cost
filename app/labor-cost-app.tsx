@@ -45,6 +45,7 @@ type SavedEstimate = {
   siteName: string;
   companyName: string;
   managerName: string;
+  riskGrade: string;
   startDate: string;
   endDate: string;
   status: EstimateStatus;
@@ -132,6 +133,7 @@ export function LaborCostApp({ displayName, isAdmin }: { displayName: string; is
   const [projectName, setProjectName] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [managerName, setManagerName] = useState("");
+  const [riskGrade, setRiskGrade] = useState("일반작업");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [status, setStatus] = useState<EstimateStatus>("draft");
@@ -399,6 +401,7 @@ export function LaborCostApp({ displayName, isAdmin }: { displayName: string; is
     setEndDate("");
     setStatus("draft");
     setNotes("");
+    setRiskGrade("일반작업");
     setExtraCosts(0);
     setIncludeInternalLabor(true);
     setQuotedLaborAmount(0);
@@ -419,6 +422,7 @@ export function LaborCostApp({ displayName, isAdmin }: { displayName: string; is
     setProjectName(estimate.projectName);
     setCompanyName(estimate.companyName);
     setManagerName(estimate.managerName || "");
+    setRiskGrade(estimate.riskGrade || "일반작업");
     setStartDate(estimate.startDate || "");
     setEndDate(estimate.endDate || "");
     setStatus(estimate.status || "draft");
@@ -514,6 +518,10 @@ export function LaborCostApp({ displayName, isAdmin }: { displayName: string; is
       toast.error("공사명을 입력해 주세요.");
       return;
     }
+    if (!riskGrade.trim()) {
+      toast.error("위험작업등급을 입력해 주세요.");
+      return;
+    }
     if (startDate && endDate && startDate > endDate) {
       toast.error("공사 종료일은 시작일과 같거나 이후 날짜로 선택해 주세요.");
       return;
@@ -551,6 +559,7 @@ export function LaborCostApp({ displayName, isAdmin }: { displayName: string; is
           siteName: workSite,
           companyName,
           managerName,
+          riskGrade,
           startDate,
           endDate,
           status,
@@ -593,6 +602,7 @@ export function LaborCostApp({ displayName, isAdmin }: { displayName: string; is
       ["공사명", projectName || "미입력"],
       ["업체명", companyName || "미입력"],
       ["담당자", managerName || "미입력"],
+      ["위험작업등급", riskGrade || "미입력"],
       ["공사기간", startDate && endDate ? `${startDate} ~ ${endDate}` : startDate || endDate || "미입력"],
       ["진행상태", STATUS_LABELS[status]],
       ["견적서상 노무비", quotedLaborAmount],
@@ -676,6 +686,7 @@ export function LaborCostApp({ displayName, isAdmin }: { displayName: string; is
                 <div className="space-y-2"><Label htmlFor="projectName">공사명</Label><Input id="projectName" value={projectName} onChange={(event) => setProjectName(event.target.value)} placeholder="예: DS기흥 회의실 AV 개선공사" /></div>
                 <div className="space-y-2"><Label htmlFor="companyName">업체명</Label><Input id="companyName" value={companyName} onChange={(event) => setCompanyName(event.target.value)} placeholder="예: RTA, 일리스, 에스큐브랩" /></div>
                 <div className="space-y-2"><Label htmlFor="managerName">담당자</Label><Input id="managerName" value={managerName} onChange={(event) => setManagerName(event.target.value)} placeholder="예: 문승균 과장" /></div>
+                <div className="space-y-2"><Label htmlFor="riskGrade">위험작업등급</Label><Select value={["일반작업", "D급", "C급"].includes(riskGrade) ? riskGrade : "__custom_risk__"} onValueChange={(value) => setRiskGrade(value === "__custom_risk__" ? "" : value)}><SelectTrigger id="riskGrade"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="일반작업">일반작업</SelectItem><SelectItem value="D급">D급</SelectItem><SelectItem value="C급">C급</SelectItem><SelectItem value="__custom_risk__">직접입력</SelectItem></SelectContent></Select>{!["일반작업", "D급", "C급"].includes(riskGrade) && <Input value={riskGrade} onChange={(event) => setRiskGrade(event.target.value)} placeholder="위험작업등급 직접입력" aria-label="위험작업등급 직접입력" autoFocus />}</div>
                 <div className="space-y-2"><Label htmlFor="startDate">공사 시작일</Label><Input id="startDate" type="date" value={startDate} onChange={(event) => { const value = event.target.value; setStartDate(value); setEndDate(value); }} /></div>
                 <div className="space-y-2"><Label htmlFor="endDate">공사 종료일</Label><Input id="endDate" type="date" value={endDate} min={startDate || undefined} onChange={(event) => setEndDate(event.target.value)} /><p className="text-xs text-slate-500">시작일 당일 또는 이후 날짜를 선택할 수 있습니다.</p></div>
                 <div className="space-y-2"><Label htmlFor="status">진행상태</Label><Select value={status} onValueChange={(value) => setStatus(value as EstimateStatus)}><SelectTrigger id="status"><SelectValue /></SelectTrigger><SelectContent>{Object.entries(STATUS_LABELS).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select></div>

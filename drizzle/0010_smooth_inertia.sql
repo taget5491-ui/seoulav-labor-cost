@@ -1,0 +1,1 @@
+ALTER TABLE `estimates` ADD `risk_grade` text DEFAULT '일반작업' NOT NULL;

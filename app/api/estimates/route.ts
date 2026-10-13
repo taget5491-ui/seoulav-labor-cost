@@ -29,6 +29,7 @@ const estimateSchema = z.object({
   siteName: z.string().trim().min(1).max(120),
   companyName: z.string().trim().max(120).default(""),
   managerName: z.string().trim().max(80).default(""),
+  riskGrade: z.string().trim().min(1).max(80).default("일반작업"),
   startDate: z.union([z.literal(""), z.string().regex(/^\d{4}-\d{2}-\d{2}$/)]).default(""),
   endDate: z.union([z.literal(""), z.string().regex(/^\d{4}-\d{2}-\d{2}$/)]).default(""),
   status: statusSchema.default("draft"),
@@ -84,6 +85,7 @@ function mapEstimate(item: DbRow, entries: DbRow[], history: DbRow[] = []) {
     siteName: item.site_name || entries[0]?.work_site || "",
     companyName: item.company_name,
     managerName: item.manager_name,
+    riskGrade: item.risk_grade || "일반작업",
     startDate: item.start_date,
     endDate: item.end_date,
     status: item.status,
@@ -185,13 +187,13 @@ export async function POST(request: Request) {
     const statements = [
       db.prepare(
         `INSERT INTO estimates (
-          id, group_id, version, project_name, site_name, company_name, manager_name,
+          id, group_id, version, project_name, site_name, company_name, manager_name, risk_grade,
           start_date, end_date, status, archived_at, notes, extra_costs, internal_headcount,
           internal_days, internal_labor_amount, quoted_labor_amount, quote_file_key,
           quote_file_name, quote_file_size, total_amount, created_by, created_by_email,
           created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).bind(id, groupId, version, input.projectName, input.siteName, input.companyName, input.managerName, input.startDate, input.endDate, input.status, input.notes, calculation.extraCosts, calculation.internalHeadcount, calculation.internalDays, calculation.internalLaborAmount, input.quotedLaborAmount, input.quoteFileKey, input.quoteFileName, input.quoteFileSize, calculation.grandTotal, user.userId, user.email, now, now),
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(id, groupId, version, input.projectName, input.siteName, input.companyName, input.managerName, input.riskGrade, input.startDate, input.endDate, input.status, input.notes, calculation.extraCosts, calculation.internalHeadcount, calculation.internalDays, calculation.internalLaborAmount, input.quotedLaborAmount, input.quoteFileKey, input.quoteFileName, input.quoteFileSize, calculation.grandTotal, user.userId, user.email, now, now),
       ...calculation.rows.map((row, index) => db.prepare(
         `INSERT INTO labor_entries (
           id, estimate_id, description, work_site, work_date, day_type, headcount, days,

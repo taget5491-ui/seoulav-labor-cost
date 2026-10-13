@@ -71,6 +71,13 @@
       "when": 1791447455947,
       "tag": "0009_right_lady_mastermind",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1791850904794,
+      "tag": "0010_smooth_inertia",
+      "breakpoints": true
     }
   ]
 }

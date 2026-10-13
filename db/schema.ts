@@ -10,6 +10,7 @@ export const estimates = sqliteTable(
     siteName: text("site_name").notNull().default(""),
     companyName: text("company_name").notNull().default(""),
     managerName: text("manager_name").notNull().default(""),
+    riskGrade: text("risk_grade").notNull().default("일반작업"),
     startDate: text("start_date").notNull().default(""),
     endDate: text("end_date").notNull().default(""),
     status: text("status").notNull().default("draft"),
