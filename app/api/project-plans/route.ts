@@ -5,7 +5,7 @@ import { z } from "zod";
 export const dynamic = "force-dynamic";
 
 const planSchema = z.object({
-  id: z.string().uuid().optional(),
+  id: z.string().min(1).max(100).optional(),
   siteName: z.string().trim().min(1).max(120),
   projectName: z.string().trim().min(1).max(180),
   managerName: z.string().trim().max(80).default(""),
@@ -52,7 +52,7 @@ export async function PUT(request: Request) {
   const user = await getSessionUser();
   if (!user?.canEdit) return Response.json({ error: "관리자 로그인이 필요합니다." }, { status: user ? 403 : 401 });
   try {
-    const input = planSchema.extend({ id: z.string().uuid() }).parse(await request.json());
+    const input = planSchema.extend({ id: z.string().min(1).max(100) }).parse(await request.json());
     if (input.endDate < input.startDate) return Response.json({ error: "종료일은 시작일 이후여야 합니다." }, { status: 400 });
     const result = await getD1().prepare(`UPDATE project_plans SET site_name=?, project_name=?, manager_name=?, company_name=?, risk_grade=?, start_date=?, end_date=?, work_description=?, status=?, updated_at=? WHERE id=?`)
       .bind(input.siteName, input.projectName, input.managerName, input.companyName, input.riskGrade, input.startDate, input.endDate, input.workDescription, input.status, new Date().toISOString(), input.id).run();
