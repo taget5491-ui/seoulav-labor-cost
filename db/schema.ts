@@ -90,3 +90,26 @@ export const userSessions = sqliteTable("user_sessions", {
   expiresAt: text("expires_at").notNull(),
   createdAt: text("created_at").notNull(),
 });
+
+export const projectPlans = sqliteTable(
+  "project_plans",
+  {
+    id: text("id").primaryKey(),
+    siteName: text("site_name").notNull().default(""),
+    projectName: text("project_name").notNull(),
+    managerName: text("manager_name").notNull().default(""),
+    companyName: text("company_name").notNull().default(""),
+    riskGrade: text("risk_grade").notNull().default("일반작업"),
+    startDate: text("start_date").notNull(),
+    endDate: text("end_date").notNull(),
+    workDescription: text("work_description").notNull().default(""),
+    status: text("status").notNull().default("planned"),
+    createdBy: text("created_by").notNull(),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => [
+    index("idx_project_plans_dates").on(table.startDate, table.endDate),
+    index("idx_project_plans_site").on(table.siteName),
+  ],
+);

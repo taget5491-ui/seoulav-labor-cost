@@ -485,6 +485,7 @@ export function LaborDashboard({
           </div>
           <div className="flex items-center gap-3">
             <a href="/schedule" className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-white/25 bg-white/10 px-4 text-sm font-medium text-white transition-colors hover:bg-white/20"><CalendarRange className="size-4" /> 연간 일정</a>
+            <a href="/plan" className="inline-flex h-9 shrink-0 items-center justify-center rounded-md border border-white/25 bg-white/10 px-4 text-sm font-medium text-white transition-colors hover:bg-white/20">계획표</a>
             {canEdit && <a
               href="/"
               className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-white/25 bg-white/10 px-4 text-sm font-medium text-white transition-colors hover:bg-white/20"
