@@ -8,7 +8,7 @@ export default async function SchedulePage() {
   const user = await getSessionUser();
   const db = getD1();
   const estimates = await db.prepare(
-    `SELECT e.id, e.project_name, e.site_name, e.company_name, e.manager_name,
+    `SELECT e.id, e.project_name, e.site_name, e.company_name, e.manager_name, e.risk_grade,
       e.start_date, e.end_date, e.status, e.archived_at, e.quoted_labor_amount, e.total_amount
      FROM estimates e
      WHERE e.version = (SELECT MAX(e2.version) FROM estimates e2 WHERE e2.group_id = e.group_id)
@@ -44,6 +44,7 @@ export default async function SchedulePage() {
       siteName: String(item.site_name || "미지정"),
       companyName: String(item.company_name || "-"),
       managerName: String(item.manager_name || "-"),
+      riskGrade: String(item.risk_grade || "일반작업"),
       startDate,
       endDate,
       status: String(item.status || "draft"),
