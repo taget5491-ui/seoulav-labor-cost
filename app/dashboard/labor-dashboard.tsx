@@ -474,7 +474,7 @@ export function LaborDashboard({
     <div className="min-h-screen bg-[#f4f7fb] text-slate-900">
       <header className="no-print border-b border-slate-200 bg-[#0c2340] text-white shadow-sm">
         <div className="mx-auto flex max-w-[1800px] items-center justify-between gap-4 px-5 py-4 lg:px-8">
-          <div className="flex items-center gap-3">
+          <a href={canEdit ? "/" : "/dashboard"} className="flex items-center gap-3 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300" aria-label={canEdit ? "노무비 산정 페이지로 이동" : "통합 대시보드로 이동"}>
             <div className="grid size-10 place-items-center rounded-xl bg-cyan-400 text-[#0c2340]">
               <BarChart3 className="size-5" />
             </div>
@@ -482,7 +482,7 @@ export function LaborDashboard({
               <p className="text-lg font-semibold">통합 대시보드</p>
               <p className="text-xs text-slate-300">노무비 현황 및 보고</p>
             </div>
-          </div>
+          </a>
           <div className="flex items-center gap-3">
             <a href="/schedule" className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-white/25 bg-white/10 px-4 text-sm font-medium text-white transition-colors hover:bg-white/20"><CalendarRange className="size-4" /> 연간 일정</a>
             <a href="/plan" className="inline-flex h-9 shrink-0 items-center justify-center rounded-md border border-white/25 bg-white/10 px-4 text-sm font-medium text-white transition-colors hover:bg-white/20">계획표</a>

@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @next/next/no-html-link-for-pages */
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, CalendarRange, LayoutDashboard, Printer, Search } from "lucide-react";
@@ -89,7 +90,7 @@ export function AnnualSchedule({ projects, displayName, isAdmin }: { projects: S
   return <div className="min-h-screen bg-[#f4f7fb] text-slate-900">
     <header className="no-print border-b border-slate-200 bg-[#0c2340] text-white shadow-sm">
       <div className="flex w-full items-center justify-between gap-4 px-4 py-4 lg:px-6">
-        <div className="flex items-center gap-3"><div className="grid size-10 place-items-center rounded-xl bg-cyan-400 text-[#0c2340]"><CalendarRange className="size-5" /></div><div><p className="text-lg font-semibold">연간 공사 일정</p><p className="text-xs text-slate-300">1월부터 12월까지 전체 일정</p></div></div>
+        <a href={isAdmin ? "/" : "/dashboard"} className="flex items-center gap-3 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300" aria-label={isAdmin ? "노무비 산정 페이지로 이동" : "통합 대시보드로 이동"}><div className="grid size-10 place-items-center rounded-xl bg-cyan-400 text-[#0c2340]"><CalendarRange className="size-5" /></div><div><p className="text-lg font-semibold">연간 공사 일정</p><p className="text-xs text-slate-300">1월부터 12월까지 전체 일정</p></div></a>
         <div className="flex items-center gap-2"><a href="/dashboard" className="inline-flex h-9 items-center gap-2 rounded-md border border-white/25 bg-white/10 px-4 text-sm font-medium hover:bg-white/20"><LayoutDashboard className="size-4" /> 통합 대시보드</a><a href="/plan" className="inline-flex h-9 items-center rounded-md border border-white/25 bg-white/10 px-4 text-sm font-medium hover:bg-white/20">계획표</a>{isAdmin && <a href="/" className="inline-flex h-9 items-center gap-2 rounded-md border border-white/25 bg-white/10 px-4 text-sm font-medium hover:bg-white/20"><ArrowLeft className="size-4" /> 산정 화면</a>}{isAdmin ? <LogoutButton /> : <a href="/login?return_to=/schedule" className="inline-flex h-9 items-center rounded-md border border-white/25 bg-white/10 px-4 text-sm font-medium hover:bg-white/20">관리자 로그인</a>}<div className="hidden text-right sm:block"><p className="text-sm">{displayName}</p><p className="text-xs text-slate-300">{isAdmin ? "관리자" : "조회"}</p></div></div>
       </div>
     </header>
