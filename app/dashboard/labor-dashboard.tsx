@@ -69,6 +69,7 @@ type Estimate = {
   siteName: string;
   companyName: string;
   managerName: string;
+  riskGrade: string;
   startDate: string;
   endDate: string;
   status: Status;
@@ -104,6 +105,12 @@ const COUNT_CONFIG = {
   count: { label: "공사 수", color: "#2563eb" },
 } satisfies ChartConfig;
 const ALL = "__all__";
+const riskGradeColor = (riskGrade: string) =>
+  riskGrade === "C급"
+    ? "text-red-600"
+    : riskGrade === "D급"
+      ? "text-orange-600"
+      : "text-black";
 
 const amountTick = (value: number) =>
   value >= 100_000_000
@@ -203,7 +210,7 @@ export function LaborDashboard({
           if (item.archivedAt) return false;
           const date = effectiveDate(item);
           const text =
-            `${item.projectName} ${item.siteName} ${item.companyName} ${item.managerName} ${item.entries.map((row) => row.contractorName).join(" ")}`.toLowerCase();
+            `${item.projectName} ${item.siteName} ${item.companyName} ${item.managerName} ${item.riskGrade} ${item.entries.map((row) => row.contractorName).join(" ")}`.toLowerCase();
           return (
             (!search || text.includes(search.toLowerCase())) &&
             (site === ALL || item.siteName === site) &&
@@ -383,6 +390,7 @@ export function LaborDashboard({
         "프로젝트",
         "사업장",
         "업체",
+        "위험작업등급",
         "상태",
         "담당자",
         "투입 인원",
@@ -395,6 +403,7 @@ export function LaborDashboard({
         item.projectName,
         item.siteName,
         item.companyName,
+        item.riskGrade,
         STATUS_LABELS[item.status],
         item.managerName,
         item.entries.reduce((sum, row) => sum + Number(row.headcount || 0), 0),
@@ -1084,6 +1093,7 @@ export function LaborDashboard({
                   <TableRow>
                     <TableHead>기준일</TableHead>
                     <TableHead>프로젝트</TableHead>
+                    <TableHead>위험작업등급</TableHead>
                     <TableHead>사업장</TableHead>
                     <TableHead>업체</TableHead>
                     <TableHead>상태</TableHead>
@@ -1117,9 +1127,10 @@ export function LaborDashboard({
                         <TableCell className="whitespace-nowrap">
                           {effectiveDate(item) || "-"}
                         </TableCell>
-                        <TableCell className="max-w-72 font-medium">
+                        <TableCell className={`max-w-72 font-medium ${riskGradeColor(item.riskGrade)}`}>
                           {item.projectName}
                         </TableCell>
+                        <TableCell className={`whitespace-nowrap font-medium ${riskGradeColor(item.riskGrade)}`}>{item.riskGrade || "일반작업"}</TableCell>
                         <TableCell>{item.siteName || "-"}</TableCell>
                         <TableCell>
                           {detailScope === "company" && detailCompany !== ALL

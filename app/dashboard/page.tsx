@@ -24,7 +24,7 @@ export default async function DashboardPage() {
   }
   const initialEstimates = estimates.results.map((item) => ({
     id: String(item.id), projectName: String(item.project_name ?? ""), siteName: String(item.site_name ?? ""),
-    companyName: String(item.company_name ?? ""), managerName: String(item.manager_name ?? ""),
+    companyName: String(item.company_name ?? ""), managerName: String(item.manager_name ?? ""), riskGrade: String(item.risk_grade ?? "일반작업"),
     startDate: String(item.start_date ?? ""), endDate: String(item.end_date ?? ""), status: String(item.status) as "draft" | "review" | "confirmed" | "closed",
     archivedAt: item.archived_at ? String(item.archived_at) : null, internalHeadcount: Number(item.internal_headcount ?? 0),
     internalLaborAmount: Number(item.internal_labor_amount ?? 0), quotedLaborAmount: Number(item.quoted_labor_amount ?? 0),
