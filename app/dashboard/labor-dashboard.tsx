@@ -20,8 +20,6 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  Line,
-  LineChart,
   XAxis,
   YAxis,
 } from "recharts";
@@ -94,10 +92,6 @@ const STATUS_STYLES: Record<Status, string> = {
   confirmed: "bg-emerald-100 text-emerald-800",
   closed: "bg-blue-100 text-blue-800",
 };
-const TREND_CONFIG = {
-  quoted: { label: "견적 노무비", color: "#0891b2" },
-  actual: { label: "실제 노무비", color: "#f59e0b" },
-} satisfies ChartConfig;
 const TOTAL_CONFIG = {
   total: { label: "노무비", color: "#0891b2" },
 } satisfies ChartConfig;
@@ -182,6 +176,9 @@ export function LaborDashboard({
   const [to, setTo] = useState("");
   const [detailCompany, setDetailCompany] = useState(ALL);
   const [detailSite, setDetailSite] = useState(ALL);
+  const [detailDateOrder, setDetailDateOrder] = useState<"latest" | "oldest">("oldest");
+  const [detailPage, setDetailPage] = useState(1);
+  const [detailProject, setDetailProject] = useState(ALL);
   const [detailRiskGrade, setDetailRiskGrade] = useState(ALL);
   const [detailScope, setDetailScope] = useState<
     "monthly" | "overall" | "site" | "company"
@@ -356,6 +353,13 @@ export function LaborDashboard({
       [...new Set(filtered.map((item) => item.siteName || "미지정"))].sort(),
     [filtered],
   );
+  const detailProjects = useMemo(
+    () =>
+      [...new Set(filtered.map((item) => item.projectName).filter(Boolean))].sort(
+        (a, b) => a.localeCompare(b, "ko"),
+      ),
+    [filtered],
+  );
   const detailRiskGrades = useMemo(
     () =>
       [...new Set(filtered.map((item) => item.riskGrade || "일반작업"))].sort(
@@ -374,29 +378,32 @@ export function LaborDashboard({
               : true;
         return (
           scopeMatches &&
+          (detailProject === ALL || item.projectName === detailProject) &&
+          (detailSite === ALL || (item.siteName || "미지정") === detailSite) &&
           (detailRiskGrade === ALL ||
             (item.riskGrade || "일반작업") === detailRiskGrade) &&
           (detailCompany === ALL || matchesCompany(item, detailCompany))
         );
+      }).sort((a, b) => {
+        const compared = effectiveDate(a).localeCompare(effectiveDate(b));
+        return detailDateOrder === "latest" ? -compared : compared;
       }),
     [
       filtered,
       detailCompany,
+      detailDateOrder,
+      detailProject,
       detailRiskGrade,
       detailSite,
       detailScope,
       selectedMonth,
     ],
   );
-  const detailCompanyTotal = useMemo(
-    () =>
-      detailCompany === ALL
-        ? 0
-        : detailItems.reduce(
-            (sum, item) => sum + detailActualForEstimate(item, detailScope, detailCompany, excludeInternalLaborInDetails),
-            0,
-          ),
-    [detailItems, detailCompany, detailScope, excludeInternalLaborInDetails],
+  const detailPageCount = Math.max(1, Math.ceil(detailItems.length / 20));
+  const currentDetailPage = Math.min(detailPage, detailPageCount);
+  const pagedDetailItems = detailItems.slice(
+    (currentDetailPage - 1) * 20,
+    currentDetailPage * 20,
   );
   const detailSummary = useMemo(() => {
     const quoted = detailItems.reduce((sum, item) => sum + Number(item.quotedLaborAmount || 0), 0);
@@ -414,6 +421,9 @@ export function LaborDashboard({
     setTo("");
     setDetailCompany(ALL);
     setDetailSite(ALL);
+    setDetailDateOrder("oldest");
+    setDetailPage(1);
+    setDetailProject(ALL);
     setDetailRiskGrade(ALL);
     setDetailScope("monthly");
     setExcludeInternalLaborInSummary(false);
@@ -736,7 +746,7 @@ export function LaborDashboard({
                     />
                   </div>
                 )}
-                <label className="flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-700">
+                <label className="flex min-h-9 flex-wrap items-center gap-x-2 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700">
                   <Checkbox
                     checked={excludeInternalLaborInSummary}
                     onCheckedChange={(checked) =>
@@ -744,6 +754,7 @@ export function LaborDashboard({
                     }
                   />
                   공무기술팀 노무비 제외
+                  <span className="text-xs text-slate-500">공무기술팀 자체 공사는 제외되지 않습니다.</span>
                 </label>
               </div>
             </div>
@@ -810,130 +821,8 @@ export function LaborDashboard({
               />
             </div>
           </section>
-          <section className="mb-5 grid gap-5 xl:grid-cols-2">
-            <Card className="border-slate-200 shadow-sm">
-              <CardHeader>
-                <CardTitle className="text-base">
-                  월별 견적 대비 실제 노무비
-                </CardTitle>
-                <p className="text-sm text-slate-500">
-                  각 월의 견적 금액과 실제 투입된 노무비를 비교합니다.
-                </p>
-                <div className="flex flex-wrap gap-4 pt-1 text-sm">
-                  <span className="flex items-center gap-2">
-                    <span className="size-3 rounded-full bg-cyan-600" />
-                    파란색 · 견적서상 노무비
-                  </span>
-                  <span className="flex items-center gap-2">
-                    <span className="size-3 rounded-full bg-amber-500" />
-                    주황색 · 실제 투입 노무비
-                  </span>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {monthlyData.length ? (
-                  <ChartContainer
-                    config={TREND_CONFIG}
-                    className="h-[310px] w-full aspect-auto"
-                  >
-                    <LineChart
-                      data={monthlyData}
-                      margin={{ left: 8, right: 16 }}
-                    >
-                      <CartesianGrid vertical={false} />
-                      <XAxis
-                        dataKey="month"
-                        tickLine={false}
-                        axisLine={false}
-                      />
-                      <YAxis
-                        tickFormatter={amountTick}
-                        width={58}
-                        tickLine={false}
-                        axisLine={false}
-                      />
-                      <ChartTooltip
-                        content={
-                          <ChartTooltipContent
-                            formatter={(value) => formatWon(Number(value))}
-                          />
-                        }
-                      />
-                      <Line
-                        dataKey="quoted"
-                        type="monotone"
-                        stroke="var(--color-quoted)"
-                        strokeWidth={3}
-                        dot={false}
-                      />
-                      <Line
-                        dataKey="actual"
-                        type="monotone"
-                        stroke="var(--color-actual)"
-                        strokeWidth={3}
-                        dot={false}
-                      />
-                    </LineChart>
-                  </ChartContainer>
-                ) : (
-                  <EmptyChart />
-                )}
-              </CardContent>
-            </Card>
-            <Card className="border-slate-200 shadow-sm">
-              <CardHeader>
-                <CardTitle className="text-base">
-                  전체 사업장별 공사 수
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {siteData.length ? (
-                  <ChartContainer
-                    config={COUNT_CONFIG}
-                    className="h-[310px] w-full aspect-auto"
-                  >
-                    <BarChart
-                      data={siteData.slice(0, 10)}
-                      layout="vertical"
-                      margin={{ left: 12, right: 28 }}
-                    >
-                      <CartesianGrid horizontal={false} />
-                      <XAxis
-                        type="number"
-                        allowDecimals={false}
-                        tickLine={false}
-                        axisLine={false}
-                      />
-                      <YAxis
-                        type="category"
-                        dataKey="name"
-                        width={100}
-                        tickLine={false}
-                        axisLine={false}
-                      />
-                      <ChartTooltip
-                        content={
-                          <ChartTooltipContent
-                            formatter={(value) =>
-                              `${Number(value).toLocaleString("ko-KR")}건`
-                            }
-                          />
-                        }
-                      />
-                      <Bar
-                        dataKey="count"
-                        fill="var(--color-count)"
-                        radius={[0, 5, 5, 0]}
-                      />
-                    </BarChart>
-                  </ChartContainer>
-                ) : (
-                  <EmptyChart />
-                )}
-              </CardContent>
-            </Card>
-          </section>
-          <section className="mb-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(380px,0.65fr)]">
+          <div className="flex flex-col">
+          <section className="order-2 mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(380px,0.65fr)]">
             <Card className="border-slate-200 shadow-sm">
               <CardHeader>
                 <div className="flex items-center justify-between gap-3">
@@ -949,8 +838,8 @@ export function LaborDashboard({
                   </Button>
                 </div>
                 <p className="text-sm text-slate-500">
-                  업체 막대를 누르면 아래 프로젝트 상세의 업체별 보기로
-                  연결됩니다.
+                  업체 막대를 누르면 위 프로젝트 상세에 해당 업체 공사만
+                  표시됩니다.
                 </p>
               </CardHeader>
               <CardContent>
@@ -991,7 +880,8 @@ export function LaborDashboard({
                           const name = selected.name || selected.payload?.name;
                           if (name) {
                             setDetailCompany(name);
-                            setDetailScope("company");
+                            setDetailScope("overall");
+                            setDetailPage(1);
                           }
                         }}
                       />
@@ -1034,27 +924,14 @@ export function LaborDashboard({
               </CardContent>
             </Card>
           </section>
-          <Card className="border-slate-200 shadow-sm">
+          <Card className="order-1 border-slate-200 shadow-sm">
             <CardHeader className="gap-3">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <CardTitle className="text-base">프로젝트 상세</CardTitle>
                   <p className="mt-1 text-sm text-slate-500">
-                    월별·전체·사이트별·업체별로 프로젝트 내역을 확인합니다.
+                    월별·전체 범위를 선택하고 표 머리글에서 원하는 조건을 필터링합니다.
                   </p>
-                  {detailCompany !== ALL && (
-                    <p className="mt-1 text-sm font-medium text-cyan-700">
-                      선택 업체: {detailCompany}
-                      {detailScope === "company"
-                        ? ` · 노무비 합계 ${formatWon(detailCompanyTotal)}`
-                        : ""}
-                    </p>
-                  )}
-                  {detailScope === "site" && (
-                    <p className="mt-1 text-sm font-medium text-cyan-700">
-                      선택 사이트: {detailSite} · 견적 노무비 총합 {formatWon(detailSummary.quoted)} · 실제 노무비 총합 {formatWon(detailSummary.actual)} · 차액 <span className={detailDifference < 0 ? "text-red-600" : "text-cyan-700"}>{formatWon(detailDifference)}</span> · 노무비 집행률 {detailSummary.rate.toFixed(1)}%
-                    </p>
-                  )}
                   {(detailScope === "monthly" || detailScope === "overall") && (
                     <p className="mt-1 text-sm font-medium text-cyan-700">
                       {detailScope === "monthly" ? `${selectedMonth} 월별` : "전체"} · 견적 노무비 총합 {formatWon(detailSummary.quoted)} · 실제 노무비 총합 {formatWon(detailSummary.actual)} · 차액 <span className={detailDifference < 0 ? "text-red-600" : "text-cyan-700"}>{formatWon(detailDifference)}</span> · 노무비 집행률 {detailSummary.rate.toFixed(1)}%
@@ -1070,38 +947,16 @@ export function LaborDashboard({
                   <Button
                     size="sm"
                     variant={detailScope === "monthly" ? "default" : "ghost"}
-                    onClick={() => { setDetailScope("monthly"); setDetailCompany(ALL); }}
+                    onClick={() => { setDetailScope("monthly"); setDetailPage(1); }}
                   >
                     월별
                   </Button>
                   <Button
                     size="sm"
                     variant={detailScope === "overall" ? "default" : "ghost"}
-                    onClick={() => { setDetailScope("overall"); setDetailCompany(ALL); }}
+                    onClick={() => { setDetailScope("overall"); setDetailPage(1); }}
                   >
                     전체
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant={detailScope === "site" ? "default" : "ghost"}
-                    onClick={() => {
-                      setDetailScope("site");
-                      if (detailSite === ALL && detailSites[0])
-                        setDetailSite(detailSites[0]);
-                    }}
-                  >
-                    사이트별
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant={detailScope === "company" ? "default" : "ghost"}
-                    onClick={() => {
-                      setDetailScope("company");
-                      if (detailCompany === ALL && companyData[0])
-                        setDetailCompany(companyData[0].name);
-                    }}
-                  >
-                    업체별
                   </Button>
                 </div>
                 {detailScope === "monthly" && (
@@ -1113,68 +968,13 @@ export function LaborDashboard({
                     aria-label="프로젝트 상세 월"
                   />
                 )}
-                {detailScope === "site" && (
-                  <Select value={detailSite} onValueChange={setDetailSite}>
-                    <SelectTrigger className="w-44">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {detailSites.map((value) => (
-                        <SelectItem key={value} value={value}>
-                          {value}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-                {detailScope === "company" && (
-                  <Select
-                    value={detailCompany}
-                    onValueChange={setDetailCompany}
-                  >
-                    <SelectTrigger className="w-44">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {companyData.map((value) => (
-                        <SelectItem key={value.name} value={value.name}>
-                          {value.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-                {detailCompany !== ALL && detailScope !== "company" && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setDetailCompany(ALL)}
-                  >
-                    업체 선택 해제
-                  </Button>
-                )}
-                <Select
-                  value={detailRiskGrade}
-                  onValueChange={setDetailRiskGrade}
-                >
-                  <SelectTrigger className="w-44">
-                    <SelectValue placeholder="위험작업등급" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={ALL}>전체 위험작업등급</SelectItem>
-                    {detailRiskGrades.map((value) => (
-                      <SelectItem key={value} value={value}>
-                        {value}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <label className="flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-700">
+                <label className="flex min-h-9 flex-wrap items-center gap-x-2 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700">
                   <Checkbox
                     checked={excludeInternalLaborInDetails}
                     onCheckedChange={(checked) => setExcludeInternalLaborInDetails(Boolean(checked))}
                   />
                   공무기술팀 노무비 제외
+                  <span className="text-xs text-slate-500">공무기술팀 자체 공사는 제외되지 않습니다.</span>
                 </label>
               </div>
             </CardHeader>
@@ -1183,18 +983,26 @@ export function LaborDashboard({
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-14 text-center">번호</TableHead>
-                    <TableHead className="text-center">기준일</TableHead>
-                    <TableHead className="text-center">프로젝트</TableHead>
-                    <TableHead className="text-center">위험작업등급</TableHead>
-                    <TableHead className="text-center">사업장</TableHead>
-                    <TableHead className="w-24 px-2 text-center">업체</TableHead>
+                    <TableHead className="min-w-32 text-center">
+                      <div className="space-y-1.5"><span>기준일</span><select value={detailDateOrder} onChange={(event) => { setDetailDateOrder(event.target.value as "latest" | "oldest"); setDetailPage(1); }} className="h-8 w-full rounded-md border bg-white px-2 text-xs font-normal"><option value="latest">최신순</option><option value="oldest">오래된순</option></select></div>
+                    </TableHead>
+                    <TableHead className="min-w-56 text-center">
+                      <div className="space-y-1.5"><span>프로젝트</span><select value={detailProject} onChange={(event) => { setDetailProject(event.target.value); setDetailPage(1); }} className="h-8 w-full rounded-md border bg-white px-2 text-xs font-normal"><option value={ALL}>전체 프로젝트</option>{detailProjects.map((value) => <option key={value} value={value}>{value}</option>)}</select></div>
+                    </TableHead>
+                    <TableHead className="min-w-40 text-center">
+                      <div className="space-y-1.5"><span>위험작업등급</span><select value={detailRiskGrade} onChange={(event) => { setDetailRiskGrade(event.target.value); setDetailPage(1); }} className="h-8 w-full rounded-md border bg-white px-2 text-xs font-normal"><option value={ALL}>전체 등급</option>{detailRiskGrades.map((value) => <option key={value} value={value}>{value}</option>)}</select></div>
+                    </TableHead>
+                    <TableHead className="min-w-36 text-center">
+                      <div className="space-y-1.5"><span>사이트</span><select value={detailSite} onChange={(event) => { setDetailSite(event.target.value); setDetailPage(1); }} className="h-8 w-full rounded-md border bg-white px-2 text-xs font-normal"><option value={ALL}>전체 사이트</option>{detailSites.map((value) => <option key={value} value={value}>{value}</option>)}</select></div>
+                    </TableHead>
+                    <TableHead className="min-w-36 px-2 text-center">
+                      <div className="space-y-1.5"><span>업체</span><select value={detailCompany} onChange={(event) => { setDetailCompany(event.target.value); setDetailPage(1); }} className="h-8 w-full rounded-md border bg-white px-2 text-xs font-normal"><option value={ALL}>전체 업체</option>{companyData.map((value) => <option key={value.name} value={value.name}>{value.name}</option>)}</select></div>
+                    </TableHead>
                     <TableHead className="w-16 px-1 text-center">상태</TableHead>
                     <TableHead className="w-20 whitespace-nowrap px-2 text-center">투입 인원</TableHead>
                     <TableHead className="w-28 whitespace-nowrap px-2 text-center">견적 노무비</TableHead>
                     <TableHead className="w-28 whitespace-nowrap px-2 text-center">
-                      {detailScope === "company"
-                        ? "업체 노무비"
-                        : "실제 노무비"}
+                      실제 노무비
                     </TableHead>
                     <TableHead className="w-28 whitespace-nowrap px-2 text-center">차액</TableHead>
                     <TableHead className="w-24 whitespace-nowrap px-2 text-center">노무비 집행률</TableHead>
@@ -1202,7 +1010,7 @@ export function LaborDashboard({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {detailItems.map((item, index) => {
+                  {pagedDetailItems.map((item, index) => {
                     const count = item.entries.reduce(
                       (sum, row) => sum + Number(row.headcount || 0),
                       0,
@@ -1226,7 +1034,7 @@ export function LaborDashboard({
                     return (
                       <TableRow key={item.id}>
                         <TableCell className="w-14 text-center text-slate-500">
-                          {index + 1}
+                          {(currentDetailPage - 1) * 20 + index + 1}
                         </TableCell>
                         <TableCell className="whitespace-nowrap text-center">
                           {effectiveDate(item) || "-"}
@@ -1303,8 +1111,18 @@ export function LaborDashboard({
                   )}
                 </TableBody>
               </Table>
+              {detailItems.length > 20 && (
+                <div className="no-print flex flex-wrap items-center justify-center gap-2 border-t border-slate-200 px-4 py-4">
+                  <Button variant="outline" size="sm" disabled={currentDetailPage === 1} onClick={() => setDetailPage((page) => Math.max(1, page - 1))}>이전</Button>
+                  {Array.from({ length: detailPageCount }, (_, index) => index + 1).map((page) => (
+                    <Button key={page} variant={page === currentDetailPage ? "default" : "outline"} size="sm" className="min-w-9" onClick={() => setDetailPage(page)}>{page}</Button>
+                  ))}
+                  <Button variant="outline" size="sm" disabled={currentDetailPage === detailPageCount} onClick={() => setDetailPage((page) => Math.min(detailPageCount, page + 1))}>다음</Button>
+                </div>
+              )}
             </CardContent>
           </Card>
+          </div>
         </>
       </main>
       <Dialog open={companyDetailsOpen} onOpenChange={setCompanyDetailsOpen}>
@@ -1333,7 +1151,8 @@ export function LaborDashboard({
                     className="cursor-pointer hover:bg-cyan-50"
                     onClick={() => {
                       setDetailCompany(row.name);
-                      setDetailScope("company");
+                      setDetailScope("overall");
+                      setDetailPage(1);
                       setCompanyDetailsOpen(false);
                     }}
                   >
