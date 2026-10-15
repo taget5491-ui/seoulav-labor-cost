@@ -187,6 +187,7 @@ export function LaborDashboard({
   >("monthly");
   const [companyDetailsOpen, setCompanyDetailsOpen] = useState(false);
   const [internalOnlyCompanies, setInternalOnlyCompanies] = useState(false);
+  const [excludeInternalLaborInSummary, setExcludeInternalLaborInSummary] = useState(false);
   const [excludeInternalLaborInDetails, setExcludeInternalLaborInDetails] = useState(false);
   const [summaryScope, setSummaryScope] = useState<"monthly" | "overall">(
     "monthly",
@@ -308,14 +309,17 @@ export function LaborDashboard({
       ),
     [filtered, selectedMonth],
   );
-  const monthlySummary = useMemo(() => summarize(monthlyItems), [monthlyItems]);
+  const monthlySummary = useMemo(
+    () => summarize(monthlyItems, excludeInternalLaborInSummary),
+    [monthlyItems, excludeInternalLaborInSummary],
+  );
   const monthlySites = useMemo(
-    () => aggregateSites(monthlyItems),
-    [monthlyItems],
+    () => aggregateSites(monthlyItems, excludeInternalLaborInSummary),
+    [monthlyItems, excludeInternalLaborInSummary],
   );
   const monthlyCompanies = useMemo(
-    () => aggregateCompanies(monthlyItems),
-    [monthlyItems],
+    () => aggregateCompanies(monthlyItems, excludeInternalLaborInSummary),
+    [monthlyItems, excludeInternalLaborInSummary],
   );
   const internalOnlyItems = useMemo(
     () =>
@@ -330,11 +334,20 @@ export function LaborDashboard({
     () =>
       aggregateCompanies(
         internalOnlyCompanies ? internalOnlyItems : filtered,
+        excludeInternalLaborInSummary,
       ),
-    [filtered, internalOnlyCompanies, internalOnlyItems],
+    [filtered, internalOnlyCompanies, internalOnlyItems, excludeInternalLaborInSummary],
   );
-  const activeSummary = summaryScope === "monthly" ? monthlySummary : summaries;
-  const activeSites = summaryScope === "monthly" ? monthlySites : siteData;
+  const overallSummary = useMemo(
+    () => summarize(filtered, excludeInternalLaborInSummary),
+    [filtered, excludeInternalLaborInSummary],
+  );
+  const overallSites = useMemo(
+    () => aggregateSites(filtered, excludeInternalLaborInSummary),
+    [filtered, excludeInternalLaborInSummary],
+  );
+  const activeSummary = summaryScope === "monthly" ? monthlySummary : overallSummary;
+  const activeSites = summaryScope === "monthly" ? monthlySites : overallSites;
   const activeCompanies =
     summaryScope === "monthly" ? monthlyCompanies : overallCompanies;
   const detailSites = useMemo(
@@ -385,6 +398,7 @@ export function LaborDashboard({
     setDetailCompany(ALL);
     setDetailSite(ALL);
     setDetailScope("monthly");
+    setExcludeInternalLaborInSummary(false);
     setExcludeInternalLaborInDetails(false);
   };
   const exportReport = () => {
@@ -704,6 +718,15 @@ export function LaborDashboard({
                     />
                   </div>
                 )}
+                <label className="flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-700">
+                  <Checkbox
+                    checked={excludeInternalLaborInSummary}
+                    onCheckedChange={(checked) =>
+                      setExcludeInternalLaborInSummary(checked === true)
+                    }
+                  />
+                  공무기술팀 노무비 제외
+                </label>
               </div>
             </div>
             <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -1463,13 +1486,19 @@ function EmptyChart({ compact = false }: { compact?: boolean }) {
   );
 }
 
-function summarize(items: Estimate[]) {
+const summaryActualForEstimate = (item: Estimate, excludeInternal: boolean) => {
+  const actual = Number(item.totalAmount || 0);
+  if (!excludeInternal || !hasExternalCompanyLabor(item)) return actual;
+  return Math.max(0, actual - Number(item.internalLaborAmount || 0));
+};
+
+function summarize(items: Estimate[], excludeInternal = false) {
   const quoted = items.reduce(
     (sum, item) => sum + Number(item.quotedLaborAmount || 0),
     0,
   );
   const actual = items.reduce(
-    (sum, item) => sum + Number(item.totalAmount || 0),
+    (sum, item) => sum + summaryActualForEstimate(item, excludeInternal),
     0,
   );
   return {
@@ -1480,7 +1509,7 @@ function summarize(items: Estimate[]) {
   };
 }
 
-function aggregateSites(items: Estimate[]) {
+function aggregateSites(items: Estimate[], excludeInternal = false) {
   const map = new Map<
     string,
     { count: number; quoted: number; actual: number }
@@ -1490,7 +1519,7 @@ function aggregateSites(items: Estimate[]) {
     const current = map.get(name) ?? { count: 0, quoted: 0, actual: 0 };
     current.count += 1;
     current.quoted += Number(item.quotedLaborAmount || 0);
-    current.actual += Number(item.totalAmount || 0);
+    current.actual += summaryActualForEstimate(item, excludeInternal);
     map.set(name, current);
   });
   return [...map]
@@ -1498,10 +1527,17 @@ function aggregateSites(items: Estimate[]) {
     .sort((a, b) => b.count - a.count || b.actual - a.actual);
 }
 
-function aggregateCompanies(items: Estimate[]) {
+function aggregateCompanies(items: Estimate[], excludeInternal = false) {
   const map = new Map<string, { total: number; projectIds: Set<string> }>();
   items.forEach((item) =>
     item.entries.forEach((row) => {
+      if (
+        excludeInternal &&
+        row.contractorType === "self" &&
+        hasExternalCompanyLabor(item)
+      ) {
+        return;
+      }
       const name =
         row.contractorType === "self"
           ? "공무기술팀"
