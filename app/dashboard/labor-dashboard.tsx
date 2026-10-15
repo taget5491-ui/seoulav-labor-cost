@@ -139,6 +139,22 @@ const companyLaborForEstimate = (item: Estimate, name: string) =>
           (!row.contractorName && item.companyName === name),
     )
     .reduce((sum, row) => sum + calculateRow(row).totalAmount, 0);
+const hasExternalCompanyLabor = (item: Estimate) =>
+  Boolean(item.companyName?.trim() && !["공무기술팀", "서울영상테크"].includes(item.companyName.trim())) ||
+  item.entries.some((row) => row.contractorType !== "self");
+const detailActualForEstimate = (
+  item: Estimate,
+  scope: "monthly" | "overall" | "site" | "company",
+  company: string,
+  excludeInternal: boolean,
+) => {
+  const companyAmount = scope === "company" && company !== ALL
+    ? companyLaborForEstimate(item, company)
+    : Number(item.totalAmount || 0);
+  if (!excludeInternal || !hasExternalCompanyLabor(item)) return companyAmount;
+  if (scope === "company") return company === "공무기술팀" ? 0 : companyAmount;
+  return Math.max(0, companyAmount - Number(item.internalLaborAmount || 0));
+};
 
 export function LaborDashboard({
   displayName,
@@ -167,6 +183,7 @@ export function LaborDashboard({
   >("monthly");
   const [companyDetailsOpen, setCompanyDetailsOpen] = useState(false);
   const [internalOnlyCompanies, setInternalOnlyCompanies] = useState(false);
+  const [excludeInternalLaborInDetails, setExcludeInternalLaborInDetails] = useState(false);
   const [summaryScope, setSummaryScope] = useState<"monthly" | "overall">(
     "monthly",
   );
@@ -342,12 +359,16 @@ export function LaborDashboard({
       detailCompany === ALL
         ? 0
         : detailItems.reduce(
-            (sum, item) => sum + companyLaborForEstimate(item, detailCompany),
+            (sum, item) => sum + detailActualForEstimate(item, detailScope, detailCompany, excludeInternalLaborInDetails),
             0,
           ),
-    [detailItems, detailCompany],
+    [detailItems, detailCompany, detailScope, excludeInternalLaborInDetails],
   );
-  const detailSummary = useMemo(() => summarize(detailItems), [detailItems]);
+  const detailSummary = useMemo(() => {
+    const quoted = detailItems.reduce((sum, item) => sum + Number(item.quotedLaborAmount || 0), 0);
+    const actual = detailItems.reduce((sum, item) => sum + detailActualForEstimate(item, detailScope, detailCompany, excludeInternalLaborInDetails), 0);
+    return { count: detailItems.length, quoted, actual, rate: quoted ? actual / quoted * 100 : 0 };
+  }, [detailItems, detailCompany, detailScope, excludeInternalLaborInDetails]);
   const detailDifference = detailSummary.quoted - detailSummary.actual;
 
   const resetFilters = () => {
@@ -360,6 +381,7 @@ export function LaborDashboard({
     setDetailCompany(ALL);
     setDetailSite(ALL);
     setDetailScope("monthly");
+    setExcludeInternalLaborInDetails(false);
   };
   const exportReport = () => {
     const rows: unknown[][] = [
@@ -985,12 +1007,12 @@ export function LaborDashboard({
                   )}
                   {detailScope === "site" && (
                     <p className="mt-1 text-sm font-medium text-cyan-700">
-                      선택 사이트: {detailSite} · 견적 노무비 총합 {formatWon(detailSummary.quoted)} · 실제 노무비 총합 {formatWon(detailSummary.actual)} · 이윤 <span className={detailDifference < 0 ? "text-red-600" : "text-cyan-700"}>{formatWon(detailDifference)}</span> · 노무비 집행률 {detailSummary.rate.toFixed(1)}%
+                      선택 사이트: {detailSite} · 견적 노무비 총합 {formatWon(detailSummary.quoted)} · 실제 노무비 총합 {formatWon(detailSummary.actual)} · 차액 <span className={detailDifference < 0 ? "text-red-600" : "text-cyan-700"}>{formatWon(detailDifference)}</span> · 노무비 집행률 {detailSummary.rate.toFixed(1)}%
                     </p>
                   )}
                   {(detailScope === "monthly" || detailScope === "overall") && (
                     <p className="mt-1 text-sm font-medium text-cyan-700">
-                      {detailScope === "monthly" ? `${selectedMonth} 월별` : "전체"} · 견적 노무비 총합 {formatWon(detailSummary.quoted)} · 실제 노무비 총합 {formatWon(detailSummary.actual)} · 이윤 <span className={detailDifference < 0 ? "text-red-600" : "text-cyan-700"}>{formatWon(detailDifference)}</span> · 노무비 집행률 {detailSummary.rate.toFixed(1)}%
+                      {detailScope === "monthly" ? `${selectedMonth} 월별` : "전체"} · 견적 노무비 총합 {formatWon(detailSummary.quoted)} · 실제 노무비 총합 {formatWon(detailSummary.actual)} · 차액 <span className={detailDifference < 0 ? "text-red-600" : "text-cyan-700"}>{formatWon(detailDifference)}</span> · 노무비 집행률 {detailSummary.rate.toFixed(1)}%
                     </p>
                   )}
                 </div>
@@ -1086,6 +1108,13 @@ export function LaborDashboard({
                     업체 선택 해제
                   </Button>
                 )}
+                <label className="flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-700">
+                  <Checkbox
+                    checked={excludeInternalLaborInDetails}
+                    onCheckedChange={(checked) => setExcludeInternalLaborInDetails(Boolean(checked))}
+                  />
+                  공무기술팀 노무비 제외
+                </label>
               </div>
             </CardHeader>
             <CardContent className="overflow-x-auto p-0">
@@ -1096,18 +1125,18 @@ export function LaborDashboard({
                     <TableHead>프로젝트</TableHead>
                     <TableHead>위험작업등급</TableHead>
                     <TableHead>사업장</TableHead>
-                    <TableHead>업체</TableHead>
-                    <TableHead>상태</TableHead>
-                    <TableHead className="text-right">투입 인원</TableHead>
-                    <TableHead className="text-right">견적 노무비</TableHead>
-                    <TableHead className="text-right">
+                    <TableHead className="w-24 px-2">업체</TableHead>
+                    <TableHead className="w-16 px-1">상태</TableHead>
+                    <TableHead className="w-20 whitespace-nowrap px-2 text-right">투입 인원</TableHead>
+                    <TableHead className="w-28 whitespace-nowrap px-2 text-right">견적 노무비</TableHead>
+                    <TableHead className="w-28 whitespace-nowrap px-2 text-right">
                       {detailScope === "company"
                         ? "업체 노무비"
                         : "실제 노무비"}
                     </TableHead>
-                    <TableHead className="text-right">이윤</TableHead>
-                    <TableHead className="text-right">노무비 집행률</TableHead>
-                    <TableHead className="text-center">관리</TableHead>
+                    <TableHead className="w-28 whitespace-nowrap px-2 text-right">차액</TableHead>
+                    <TableHead className="w-24 whitespace-nowrap px-2 text-right">노무비 집행률</TableHead>
+                    <TableHead className="min-w-24 text-center">관리</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1116,10 +1145,12 @@ export function LaborDashboard({
                       (sum, row) => sum + Number(row.headcount || 0),
                       0,
                     );
-                    const shownActual =
-                      detailScope === "company" && detailCompany !== ALL
-                        ? companyLaborForEstimate(item, detailCompany)
-                        : Number(item.totalAmount || 0);
+                    const shownActual = detailActualForEstimate(
+                      item,
+                      detailScope,
+                      detailCompany,
+                      excludeInternalLaborInDetails,
+                    );
                     const profit =
                       detailScope === "company"
                         ? 0
@@ -1137,7 +1168,7 @@ export function LaborDashboard({
                         </TableCell>
                         <TableCell className={`whitespace-nowrap font-medium ${riskGradeColor(item.riskGrade)}`}>{item.riskGrade || "일반작업"}</TableCell>
                         <TableCell>{item.siteName || "-"}</TableCell>
-                        <TableCell>
+                        <TableCell className="w-24 px-2">
                           {detailScope === "company" && detailCompany !== ALL
                             ? detailCompany
                             : item.companyName ||
@@ -1146,24 +1177,24 @@ export function LaborDashboard({
                               )?.contractorName ||
                               "-"}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="w-16 px-1">
                           <span
                             className={`whitespace-nowrap rounded-full px-2 py-1 text-xs ${STATUS_STYLES[item.status]}`}
                           >
                             {STATUS_LABELS[item.status]}
                           </span>
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="w-20 whitespace-nowrap px-2 text-right">
                           {count.toLocaleString("ko-KR")}명
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="w-28 whitespace-nowrap px-2 text-right">
                           {formatWon(item.quotedLaborAmount)}
                         </TableCell>
-                        <TableCell className="text-right font-medium">
+                        <TableCell className="w-28 whitespace-nowrap px-2 text-right font-medium">
                           {formatWon(shownActual)}
                         </TableCell>
                         <TableCell
-                          className={`text-right ${profit < 0 ? "text-red-600" : "text-emerald-700"}`}
+                          className={`w-28 whitespace-nowrap px-2 text-right ${profit < 0 ? "text-red-600" : "text-emerald-700"}`}
                         >
                           {detailScope === "company" ? (
                             "-"
@@ -1171,10 +1202,10 @@ export function LaborDashboard({
                             formatWon(profit)
                           )}
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="w-24 whitespace-nowrap px-2 text-right">
                           {detailScope === "company" ? "-" : `${executionRate.toFixed(1)}%`}
                         </TableCell>
-                        <TableCell className="text-center">
+                        <TableCell className="min-w-24 text-center">
                           {item.status === "closed" && canEdit ? (
                             <a
                               href={`/?edit=${encodeURIComponent(item.id)}`}
