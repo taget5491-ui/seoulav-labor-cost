@@ -7,6 +7,7 @@ import {
   BarChart3,
   Building2,
   CalendarRange,
+  ChevronDown,
   Download,
   FilePenLine,
   FileText,
@@ -41,6 +42,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -153,6 +161,44 @@ const detailActualForEstimate = (
   if (scope === "company") return company === "공무기술팀" ? 0 : companyAmount;
   return Math.max(0, companyAmount - Number(item.internalLaborAmount || 0));
 };
+
+function DetailHeaderFilter({
+  label,
+  value,
+  options,
+  onChange,
+  active = false,
+}: {
+  label: string;
+  value: string;
+  options: Array<{ value: string; label: string }>;
+  onChange: (value: string) => void;
+  active?: boolean;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className={`mx-auto flex items-center justify-center gap-1 whitespace-nowrap rounded-md px-2 py-1.5 font-semibold outline-none hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-cyan-500 ${active ? "text-cyan-700" : "text-slate-700"}`}
+          aria-label={`${label} 필터 열기`}
+        >
+          {label}
+          <ChevronDown className="size-3.5" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="center" className="max-h-72 min-w-44 overflow-y-auto">
+        <DropdownMenuRadioGroup value={value} onValueChange={onChange}>
+          {options.map((option) => (
+            <DropdownMenuRadioItem key={option.value} value={option.value}>
+              {option.label}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
 
 export function LaborDashboard({
   displayName,
@@ -984,19 +1030,19 @@ export function LaborDashboard({
                   <TableRow>
                     <TableHead className="w-14 text-center">번호</TableHead>
                     <TableHead className="min-w-32 text-center">
-                      <div className="space-y-1.5"><span>기준일</span><select value={detailDateOrder} onChange={(event) => { setDetailDateOrder(event.target.value as "latest" | "oldest"); setDetailPage(1); }} className="h-8 w-full rounded-md border bg-white px-2 text-xs font-normal"><option value="latest">최신순</option><option value="oldest">오래된순</option></select></div>
+                      <DetailHeaderFilter label="기준일" value={detailDateOrder} options={[{ value: "latest", label: "최신순" }, { value: "oldest", label: "오래된순" }]} onChange={(value) => { setDetailDateOrder(value as "latest" | "oldest"); setDetailPage(1); }} active={detailDateOrder === "latest"} />
                     </TableHead>
                     <TableHead className="min-w-56 text-center">
-                      <div className="space-y-1.5"><span>프로젝트</span><select value={detailProject} onChange={(event) => { setDetailProject(event.target.value); setDetailPage(1); }} className="h-8 w-full rounded-md border bg-white px-2 text-xs font-normal"><option value={ALL}>전체 프로젝트</option>{detailProjects.map((value) => <option key={value} value={value}>{value}</option>)}</select></div>
+                      <DetailHeaderFilter label="프로젝트" value={detailProject} options={[{ value: ALL, label: "전체 프로젝트" }, ...detailProjects.map((value) => ({ value, label: value }))]} onChange={(value) => { setDetailProject(value); setDetailPage(1); }} active={detailProject !== ALL} />
                     </TableHead>
                     <TableHead className="min-w-40 text-center">
-                      <div className="space-y-1.5"><span>위험작업등급</span><select value={detailRiskGrade} onChange={(event) => { setDetailRiskGrade(event.target.value); setDetailPage(1); }} className="h-8 w-full rounded-md border bg-white px-2 text-xs font-normal"><option value={ALL}>전체 등급</option>{detailRiskGrades.map((value) => <option key={value} value={value}>{value}</option>)}</select></div>
+                      <DetailHeaderFilter label="위험작업등급" value={detailRiskGrade} options={[{ value: ALL, label: "전체 등급" }, ...detailRiskGrades.map((value) => ({ value, label: value }))]} onChange={(value) => { setDetailRiskGrade(value); setDetailPage(1); }} active={detailRiskGrade !== ALL} />
                     </TableHead>
                     <TableHead className="min-w-36 text-center">
-                      <div className="space-y-1.5"><span>사이트</span><select value={detailSite} onChange={(event) => { setDetailSite(event.target.value); setDetailPage(1); }} className="h-8 w-full rounded-md border bg-white px-2 text-xs font-normal"><option value={ALL}>전체 사이트</option>{detailSites.map((value) => <option key={value} value={value}>{value}</option>)}</select></div>
+                      <DetailHeaderFilter label="사이트" value={detailSite} options={[{ value: ALL, label: "전체 사이트" }, ...detailSites.map((value) => ({ value, label: value }))]} onChange={(value) => { setDetailSite(value); setDetailPage(1); }} active={detailSite !== ALL} />
                     </TableHead>
                     <TableHead className="min-w-36 px-2 text-center">
-                      <div className="space-y-1.5"><span>업체</span><select value={detailCompany} onChange={(event) => { setDetailCompany(event.target.value); setDetailPage(1); }} className="h-8 w-full rounded-md border bg-white px-2 text-xs font-normal"><option value={ALL}>전체 업체</option>{companyData.map((value) => <option key={value.name} value={value.name}>{value.name}</option>)}</select></div>
+                      <DetailHeaderFilter label="업체" value={detailCompany} options={[{ value: ALL, label: "전체 업체" }, ...companyData.map((value) => ({ value: value.name, label: value.name }))]} onChange={(value) => { setDetailCompany(value); setDetailPage(1); }} active={detailCompany !== ALL} />
                     </TableHead>
                     <TableHead className="w-16 px-1 text-center">상태</TableHead>
                     <TableHead className="w-20 whitespace-nowrap px-2 text-center">투입 인원</TableHead>
