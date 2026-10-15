@@ -1021,7 +1021,7 @@ export function LaborDashboard({
                   )}
                 </div>
                 <span className="text-sm text-slate-500">
-                  {detailItems.length}건
+                  총 {detailItems.length}건
                 </span>
               </div>
               <div className="no-print flex flex-wrap items-center gap-2">
@@ -1125,6 +1125,7 @@ export function LaborDashboard({
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-14 text-center">번호</TableHead>
                     <TableHead>기준일</TableHead>
                     <TableHead>프로젝트</TableHead>
                     <TableHead>위험작업등급</TableHead>
@@ -1144,7 +1145,7 @@ export function LaborDashboard({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {detailItems.map((item) => {
+                  {detailItems.map((item, index) => {
                     const count = item.entries.reduce(
                       (sum, row) => sum + Number(row.headcount || 0),
                       0,
@@ -1164,6 +1165,9 @@ export function LaborDashboard({
                       : 0;
                     return (
                       <TableRow key={item.id}>
+                        <TableCell className="w-14 text-center text-slate-500">
+                          {index + 1}
+                        </TableCell>
                         <TableCell className="whitespace-nowrap">
                           {effectiveDate(item) || "-"}
                         </TableCell>
@@ -1228,7 +1232,7 @@ export function LaborDashboard({
                   {!detailItems.length && (
                     <TableRow>
                       <TableCell
-                        colSpan={12}
+                        colSpan={13}
                         className="h-32 text-center text-slate-500"
                       >
                         선택 조건에 해당하는 프로젝트가 없습니다.
