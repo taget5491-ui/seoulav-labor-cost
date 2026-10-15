@@ -139,9 +139,13 @@ const companyLaborForEstimate = (item: Estimate, name: string) =>
           (!row.contractorName && item.companyName === name),
     )
     .reduce((sum, row) => sum + calculateRow(row).totalAmount, 0);
-const hasExternalCompanyLabor = (item: Estimate) =>
-  Boolean(item.companyName?.trim() && !["공무기술팀", "서울영상테크"].includes(item.companyName.trim())) ||
-  item.entries.some((row) => row.contractorType !== "self");
+const hasExternalCompanyLabor = (item: Estimate) => {
+  if (item.entries.length > 0) {
+    return item.entries.some((row) => row.contractorType !== "self");
+  }
+  const companyName = item.companyName?.trim() || "";
+  return Boolean(companyName && !["공무기술팀", "서울영상테크", "자체"].includes(companyName));
+};
 const detailActualForEstimate = (
   item: Estimate,
   scope: "monthly" | "overall" | "site" | "company",
