@@ -182,6 +182,7 @@ export function LaborDashboard({
   const [to, setTo] = useState("");
   const [detailCompany, setDetailCompany] = useState(ALL);
   const [detailSite, setDetailSite] = useState(ALL);
+  const [detailRiskGrade, setDetailRiskGrade] = useState(ALL);
   const [detailScope, setDetailScope] = useState<
     "monthly" | "overall" | "site" | "company"
   >("monthly");
@@ -355,6 +356,13 @@ export function LaborDashboard({
       [...new Set(filtered.map((item) => item.siteName || "미지정"))].sort(),
     [filtered],
   );
+  const detailRiskGrades = useMemo(
+    () =>
+      [...new Set(filtered.map((item) => item.riskGrade || "일반작업"))].sort(
+        (a, b) => a.localeCompare(b, "ko"),
+      ),
+    [filtered],
+  );
   const detailItems = useMemo(
     () =>
       filtered.filter((item) => {
@@ -366,10 +374,19 @@ export function LaborDashboard({
               : true;
         return (
           scopeMatches &&
+          (detailRiskGrade === ALL ||
+            (item.riskGrade || "일반작업") === detailRiskGrade) &&
           (detailCompany === ALL || matchesCompany(item, detailCompany))
         );
       }),
-    [filtered, detailCompany, detailSite, detailScope, selectedMonth],
+    [
+      filtered,
+      detailCompany,
+      detailRiskGrade,
+      detailSite,
+      detailScope,
+      selectedMonth,
+    ],
   );
   const detailCompanyTotal = useMemo(
     () =>
@@ -397,6 +414,7 @@ export function LaborDashboard({
     setTo("");
     setDetailCompany(ALL);
     setDetailSite(ALL);
+    setDetailRiskGrade(ALL);
     setDetailScope("monthly");
     setExcludeInternalLaborInSummary(false);
     setExcludeInternalLaborInDetails(false);
@@ -1135,6 +1153,22 @@ export function LaborDashboard({
                     업체 선택 해제
                   </Button>
                 )}
+                <Select
+                  value={detailRiskGrade}
+                  onValueChange={setDetailRiskGrade}
+                >
+                  <SelectTrigger className="w-44">
+                    <SelectValue placeholder="위험작업등급" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={ALL}>전체 위험작업등급</SelectItem>
+                    {detailRiskGrades.map((value) => (
+                      <SelectItem key={value} value={value}>
+                        {value}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <label className="flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-700">
                   <Checkbox
                     checked={excludeInternalLaborInDetails}
@@ -1149,15 +1183,15 @@ export function LaborDashboard({
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-14 text-center">번호</TableHead>
-                    <TableHead>기준일</TableHead>
-                    <TableHead>프로젝트</TableHead>
-                    <TableHead>위험작업등급</TableHead>
-                    <TableHead>사업장</TableHead>
-                    <TableHead className="w-24 px-2">업체</TableHead>
-                    <TableHead className="w-16 px-1">상태</TableHead>
-                    <TableHead className="w-20 whitespace-nowrap px-2 text-right">투입 인원</TableHead>
-                    <TableHead className="w-28 whitespace-nowrap px-2 text-right">견적 노무비</TableHead>
-                    <TableHead className="w-28 whitespace-nowrap px-2 text-right">
+                    <TableHead className="text-center">기준일</TableHead>
+                    <TableHead className="text-center">프로젝트</TableHead>
+                    <TableHead className="text-center">위험작업등급</TableHead>
+                    <TableHead className="text-center">사업장</TableHead>
+                    <TableHead className="w-24 px-2 text-center">업체</TableHead>
+                    <TableHead className="w-16 px-1 text-center">상태</TableHead>
+                    <TableHead className="w-20 whitespace-nowrap px-2 text-center">투입 인원</TableHead>
+                    <TableHead className="w-28 whitespace-nowrap px-2 text-center">견적 노무비</TableHead>
+                    <TableHead className="w-28 whitespace-nowrap px-2 text-center">
                       {detailScope === "company"
                         ? "업체 노무비"
                         : "실제 노무비"}
@@ -1191,15 +1225,15 @@ export function LaborDashboard({
                         <TableCell className="w-14 text-center text-slate-500">
                           {index + 1}
                         </TableCell>
-                        <TableCell className="whitespace-nowrap">
+                        <TableCell className="whitespace-nowrap text-center">
                           {effectiveDate(item) || "-"}
                         </TableCell>
-                        <TableCell className={`max-w-72 whitespace-normal font-medium ${riskGradeColor(item.riskGrade)}`}>
-                          <span className="line-clamp-2 max-w-72 [word-break:keep-all]" title={item.projectName}>{item.projectName}</span>
+                        <TableCell className={`max-w-72 whitespace-normal text-center font-medium ${riskGradeColor(item.riskGrade)}`}>
+                          <span className="mx-auto line-clamp-2 max-w-72 [word-break:keep-all]" title={item.projectName}>{item.projectName}</span>
                         </TableCell>
-                        <TableCell className={`whitespace-nowrap font-medium ${riskGradeColor(item.riskGrade)}`}>{item.riskGrade || "일반작업"}</TableCell>
-                        <TableCell>{item.siteName || "-"}</TableCell>
-                        <TableCell className="w-24 px-2">
+                        <TableCell className={`whitespace-nowrap text-center font-medium ${riskGradeColor(item.riskGrade)}`}>{item.riskGrade || "일반작업"}</TableCell>
+                        <TableCell className="text-center">{item.siteName || "-"}</TableCell>
+                        <TableCell className="w-24 px-2 text-center">
                           {detailScope === "company" && detailCompany !== ALL
                             ? detailCompany
                             : item.companyName ||
@@ -1208,20 +1242,20 @@ export function LaborDashboard({
                               )?.contractorName ||
                               "-"}
                         </TableCell>
-                        <TableCell className="w-16 px-1">
+                        <TableCell className="w-16 px-1 text-center">
                           <span
                             className={`whitespace-nowrap rounded-full px-2 py-1 text-xs ${STATUS_STYLES[item.status]}`}
                           >
                             {STATUS_LABELS[item.status]}
                           </span>
                         </TableCell>
-                        <TableCell className="w-20 whitespace-nowrap px-2 text-right">
+                        <TableCell className="w-20 whitespace-nowrap px-2 text-center">
                           {count.toLocaleString("ko-KR")}명
                         </TableCell>
-                        <TableCell className="w-28 whitespace-nowrap px-2 text-right">
+                        <TableCell className="w-28 whitespace-nowrap px-2 text-center">
                           {formatWon(item.quotedLaborAmount)}
                         </TableCell>
-                        <TableCell className="w-28 whitespace-nowrap px-2 text-right font-medium">
+                        <TableCell className="w-28 whitespace-nowrap px-2 text-center font-medium">
                           {formatWon(shownActual)}
                         </TableCell>
                         <TableCell
