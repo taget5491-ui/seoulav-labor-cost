@@ -1213,10 +1213,13 @@ export function LaborDashboard({
                       detailCompany,
                       excludeInternalLaborInDetails,
                     );
+                    const showFinancialComparison =
+                      detailScope !== "company" ||
+                      (detailCompany === "공무기술팀" &&
+                        excludeInternalLaborInDetails &&
+                        !hasExternalCompanyLabor(item));
                     const profit =
-                      detailScope === "company"
-                        ? 0
-                        : Number(item.quotedLaborAmount || 0) - shownActual;
+                      Number(item.quotedLaborAmount || 0) - shownActual;
                     const executionRate = Number(item.quotedLaborAmount || 0) > 0
                       ? shownActual / Number(item.quotedLaborAmount || 0) * 100
                       : 0;
@@ -1261,14 +1264,16 @@ export function LaborDashboard({
                         <TableCell
                           className={`w-28 whitespace-nowrap px-2 text-center ${profit < 0 ? "text-red-600" : "text-emerald-700"}`}
                         >
-                          {detailScope === "company" ? (
-                            "-"
-                          ) : (
+                          {showFinancialComparison ? (
                             formatWon(profit)
+                          ) : (
+                            "-"
                           )}
                         </TableCell>
                         <TableCell className="w-24 whitespace-nowrap px-2 text-center">
-                          {detailScope === "company" ? "-" : `${executionRate.toFixed(1)}%`}
+                          {showFinancialComparison
+                            ? `${executionRate.toFixed(1)}%`
+                            : "-"}
                         </TableCell>
                         <TableCell className="min-w-24 text-center">
                           {item.status === "closed" && canEdit ? (
