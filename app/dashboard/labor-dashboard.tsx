@@ -1164,7 +1164,7 @@ export function LaborDashboard({
                           {effectiveDate(item) || "-"}
                         </TableCell>
                         <TableCell className={`max-w-72 whitespace-normal font-medium ${riskGradeColor(item.riskGrade)}`}>
-                          <span className="line-clamp-2 max-w-72 break-all" title={item.projectName}>{item.projectName}</span>
+                          <span className="line-clamp-2 max-w-72 [word-break:keep-all]" title={item.projectName}>{item.projectName}</span>
                         </TableCell>
                         <TableCell className={`whitespace-nowrap font-medium ${riskGradeColor(item.riskGrade)}`}>{item.riskGrade || "일반작업"}</TableCell>
                         <TableCell>{item.siteName || "-"}</TableCell>
