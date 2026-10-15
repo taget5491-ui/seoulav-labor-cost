@@ -12,7 +12,6 @@ import {
   FilePenLine,
   FileText,
   Printer,
-  RotateCcw,
   Search,
   ShieldCheck,
   Users,
@@ -51,13 +50,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -215,11 +207,6 @@ export function LaborDashboard({
 }) {
   const items = initialEstimates;
   const [search, setSearch] = useState("");
-  const [site, setSite] = useState(ALL);
-  const [company, setCompany] = useState(ALL);
-  const [status, setStatus] = useState(ALL);
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
   const [detailCompany, setDetailCompany] = useState(ALL);
   const [detailSite, setDetailSite] = useState(ALL);
   const [detailSort, setDetailSort] = useState<{
@@ -251,52 +238,21 @@ export function LaborDashboard({
   );
   const [selectedMonth, setSelectedMonth] = useState(latestMonth);
 
-  const sites = useMemo(
-    () =>
-      [...new Set(items.map((item) => item.siteName).filter(Boolean))].sort(),
-    [items],
-  );
-  const companies = useMemo(
-    () =>
-      [
-        ...new Set(
-          items
-            .flatMap((item) => [
-              item.companyName,
-              ...item.entries
-                .filter((row) => row.contractorType !== "self")
-                .map((row) => row.contractorName),
-            ])
-            .filter(Boolean),
-        ),
-      ].sort(),
-    [items],
-  );
   const filtered = useMemo(
     () =>
       items
         .filter((item) => {
           if (item.archivedAt) return false;
-          const date = effectiveDate(item);
           const text =
-            `${item.projectName} ${item.siteName} ${item.companyName} ${item.managerName} ${item.riskGrade} ${item.entries.map((row) => row.contractorName).join(" ")}`.toLowerCase();
-          return (
-            (!search || text.includes(search.toLowerCase())) &&
-            (site === ALL || item.siteName === site) &&
-            (company === ALL ||
-              item.companyName === company ||
-              item.entries.some((row) => row.contractorName === company)) &&
-            (status === ALL || item.status === status) &&
-            (!from || date >= from) &&
-            (!to || date <= to)
-          );
+            `${item.projectName} ${item.siteName} ${item.companyName} ${item.entries.map((row) => row.contractorName).join(" ")}`.toLowerCase();
+          return !search || text.includes(search.toLowerCase());
         })
         .sort(
           (a, b) =>
             effectiveDate(a).localeCompare(effectiveDate(b)) ||
             a.projectName.localeCompare(b.projectName, "ko"),
         ),
-    [items, search, site, company, status, from, to],
+    [items, search],
   );
 
   const summaries = useMemo(() => {
@@ -484,30 +440,13 @@ export function LaborDashboard({
   }, [detailItems, detailCompany, detailScope, excludeInternalLaborInDetails]);
   const detailDifference = detailSummary.quoted - detailSummary.actual;
 
-  const resetFilters = () => {
-    setSearch("");
-    setSite(ALL);
-    setCompany(ALL);
-    setStatus(ALL);
-    setFrom("");
-    setTo("");
-    setDetailCompany(ALL);
-    setDetailSite(ALL);
-    setDetailDateOrder("oldest");
-    setDetailPage(1);
-    setDetailProject(ALL);
-    setDetailRiskGrade(ALL);
-    setDetailScope("monthly");
-    setExcludeInternalLaborInSummary(false);
-    setExcludeInternalLaborInDetails(false);
-  };
   const exportReport = () => {
     const rows: unknown[][] = [
       ["서울영상테크 노무비 통합 보고서"],
       ["생성일", new Date().toLocaleString("ko-KR")],
       [
         "필터",
-        `기간 ${from || "전체"}~${to || "전체"} / 사업장 ${site === ALL ? "전체" : site} / 업체 ${company === ALL ? "전체" : company} / 상태 ${status === ALL ? "전체" : STATUS_LABELS[status as Status]}`,
+        `검색어 ${search || "전체"}`,
       ],
       [],
       ["요약"],
@@ -663,7 +602,17 @@ export function LaborDashboard({
               있습니다.
             </p>
           </div>
-          <div className="no-print flex gap-2">
+          <div className="no-print flex flex-wrap items-center gap-2">
+            <div className="relative w-72 max-w-full">
+              <Search className="absolute left-3 top-2.5 size-4 text-slate-400" />
+              <Input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                className="pl-9"
+                placeholder="프로젝트, 사이트, 업체 검색"
+                aria-label="프로젝트, 사이트, 업체 검색"
+              />
+            </div>
             <Button
               variant="outline"
               onClick={exportReport}
@@ -685,92 +634,6 @@ export function LaborDashboard({
             개 프로젝트
           </p>
         </div>
-        <Card className="no-print mb-5 border-slate-200 shadow-sm">
-          <CardContent className="grid gap-4 pt-6 md:grid-cols-2 xl:grid-cols-[minmax(220px,1.5fr)_1fr_1fr_1fr_1fr_auto]">
-            <div className="space-y-1.5">
-              <Label>검색</Label>
-              <div className="relative">
-                <Search className="absolute left-3 top-2.5 size-4 text-slate-400" />
-                <Input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="pl-9"
-                  placeholder="프로젝트, 업체, 담당자"
-                />
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label>사업장</Label>
-              <Select value={site} onValueChange={setSite}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL}>전체 사업장</SelectItem>
-                  {sites.map((value) => (
-                    <SelectItem key={value} value={value}>
-                      {value}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label>업체</Label>
-              <Select value={company} onValueChange={setCompany}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL}>전체 업체</SelectItem>
-                  {companies.map((value) => (
-                    <SelectItem key={value} value={value}>
-                      {value}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label>상태</Label>
-              <Select value={status} onValueChange={setStatus}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL}>전체 상태</SelectItem>
-                  {Object.entries(STATUS_LABELS).map(([value, label]) => (
-                    <SelectItem key={value} value={value}>
-                      {label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label>기간</Label>
-              <div className="flex gap-2">
-                <Input
-                  type="date"
-                  value={from}
-                  onChange={(e) => setFrom(e.target.value)}
-                  aria-label="시작일"
-                />
-                <Input
-                  type="date"
-                  value={to}
-                  onChange={(e) => setTo(e.target.value)}
-                  aria-label="종료일"
-                />
-              </div>
-            </div>
-            <div className="flex items-end">
-              <Button variant="outline" onClick={resetFilters}>
-                <RotateCcw /> 초기화
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
         <>
           <section className="mb-8 rounded-2xl border border-cyan-200 bg-gradient-to-br from-cyan-50 via-white to-blue-50 p-4 shadow-sm sm:p-6">
             <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
