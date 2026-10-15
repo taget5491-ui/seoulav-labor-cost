@@ -154,11 +154,11 @@ const detailActualForEstimate = (
   company: string,
   excludeInternal: boolean,
 ) => {
-  const companyAmount = scope === "company" && company !== ALL
+  const companyAmount = company !== ALL
     ? companyLaborForEstimate(item, company)
     : Number(item.totalAmount || 0);
   if (!excludeInternal || !hasExternalCompanyLabor(item)) return companyAmount;
-  if (scope === "company") return company === "공무기술팀" ? 0 : companyAmount;
+  if (company !== ALL) return company === "공무기술팀" ? 0 : companyAmount;
   return Math.max(0, companyAmount - Number(item.internalLaborAmount || 0));
 };
 
@@ -222,9 +222,12 @@ export function LaborDashboard({
   const [to, setTo] = useState("");
   const [detailCompany, setDetailCompany] = useState(ALL);
   const [detailSite, setDetailSite] = useState(ALL);
-  const [detailDateOrder, setDetailDateOrder] = useState<"latest" | "oldest">("oldest");
+  const [detailSort, setDetailSort] = useState<{
+    field: "date" | "quoted" | "actual" | "difference" | "rate";
+    direction: "asc" | "desc";
+  }>({ field: "date", direction: "asc" });
+  const [detailStatus, setDetailStatus] = useState(ALL);
   const [detailPage, setDetailPage] = useState(1);
-  const [detailProject, setDetailProject] = useState(ALL);
   const [detailRiskGrade, setDetailRiskGrade] = useState(ALL);
   const [detailScope, setDetailScope] = useState<
     "monthly" | "overall" | "site" | "company"
@@ -399,13 +402,17 @@ export function LaborDashboard({
       [...new Set(filtered.map((item) => item.siteName || "미지정"))].sort(),
     [filtered],
   );
-  const detailProjects = useMemo(
-    () =>
-      [...new Set(filtered.map((item) => item.projectName).filter(Boolean))].sort(
-        (a, b) => a.localeCompare(b, "ko"),
-      ),
-    [filtered],
-  );
+  const detailCompanyOptions = useMemo(() => {
+    const options = companyData
+      .map((item) => ({
+        value: item.name,
+        label: item.name === "공무기술팀" ? "서울영상테크" : item.name,
+      }))
+      .sort((a, b) => Number(b.value === "공무기술팀") - Number(a.value === "공무기술팀"));
+    return options.filter(
+      (option, index) => options.findIndex((item) => item.label === option.label) === index,
+    );
+  }, [companyData]);
   const detailRiskGrades = useMemo(
     () =>
       [...new Set(filtered.map((item) => item.riskGrade || "일반작업"))].sort(
@@ -424,24 +431,43 @@ export function LaborDashboard({
               : true;
         return (
           scopeMatches &&
-          (detailProject === ALL || item.projectName === detailProject) &&
           (detailSite === ALL || (item.siteName || "미지정") === detailSite) &&
+          (detailStatus === ALL || item.status === detailStatus) &&
           (detailRiskGrade === ALL ||
             (item.riskGrade || "일반작업") === detailRiskGrade) &&
           (detailCompany === ALL || matchesCompany(item, detailCompany))
         );
       }).sort((a, b) => {
-        const compared = effectiveDate(a).localeCompare(effectiveDate(b));
-        return detailDateOrder === "latest" ? -compared : compared;
+        const value = (item: Estimate) => {
+          if (detailSort.field === "date") return effectiveDate(item);
+          const quoted = Number(item.quotedLaborAmount || 0);
+          const actual = detailActualForEstimate(
+            item,
+            detailScope,
+            detailCompany,
+            excludeInternalLaborInDetails,
+          );
+          if (detailSort.field === "quoted") return quoted;
+          if (detailSort.field === "actual") return actual;
+          if (detailSort.field === "difference") return quoted - actual;
+          return quoted > 0 ? actual / quoted * 100 : 0;
+        };
+        const aValue = value(a);
+        const bValue = value(b);
+        const compared = typeof aValue === "string"
+          ? aValue.localeCompare(String(bValue))
+          : aValue - Number(bValue);
+        return detailSort.direction === "desc" ? -compared : compared;
       }),
     [
       filtered,
       detailCompany,
-      detailDateOrder,
-      detailProject,
       detailRiskGrade,
       detailSite,
+      detailSort,
+      detailStatus,
       detailScope,
+      excludeInternalLaborInDetails,
       selectedMonth,
     ],
   );
@@ -1030,11 +1056,9 @@ export function LaborDashboard({
                   <TableRow>
                     <TableHead className="w-14 text-center">번호</TableHead>
                     <TableHead className="min-w-32 text-center">
-                      <DetailHeaderFilter label="기준일" value={detailDateOrder} options={[{ value: "latest", label: "최신순" }, { value: "oldest", label: "오래된순" }]} onChange={(value) => { setDetailDateOrder(value as "latest" | "oldest"); setDetailPage(1); }} active={detailDateOrder === "latest"} />
+                      <DetailHeaderFilter label="기준일" value={detailSort.field === "date" ? detailSort.direction : ""} options={[{ value: "desc", label: "최신순" }, { value: "asc", label: "오래된순" }]} onChange={(direction) => { setDetailSort({ field: "date", direction: direction as "asc" | "desc" }); setDetailPage(1); }} active={detailSort.field === "date" && detailSort.direction === "desc"} />
                     </TableHead>
-                    <TableHead className="min-w-56 text-center">
-                      <DetailHeaderFilter label="프로젝트" value={detailProject} options={[{ value: ALL, label: "전체 프로젝트" }, ...detailProjects.map((value) => ({ value, label: value }))]} onChange={(value) => { setDetailProject(value); setDetailPage(1); }} active={detailProject !== ALL} />
-                    </TableHead>
+                    <TableHead className="min-w-56 text-center">프로젝트</TableHead>
                     <TableHead className="min-w-40 text-center">
                       <DetailHeaderFilter label="위험작업등급" value={detailRiskGrade} options={[{ value: ALL, label: "전체 등급" }, ...detailRiskGrades.map((value) => ({ value, label: value }))]} onChange={(value) => { setDetailRiskGrade(value); setDetailPage(1); }} active={detailRiskGrade !== ALL} />
                     </TableHead>
@@ -1042,16 +1066,24 @@ export function LaborDashboard({
                       <DetailHeaderFilter label="사이트" value={detailSite} options={[{ value: ALL, label: "전체 사이트" }, ...detailSites.map((value) => ({ value, label: value }))]} onChange={(value) => { setDetailSite(value); setDetailPage(1); }} active={detailSite !== ALL} />
                     </TableHead>
                     <TableHead className="min-w-36 px-2 text-center">
-                      <DetailHeaderFilter label="업체" value={detailCompany} options={[{ value: ALL, label: "전체 업체" }, ...companyData.map((value) => ({ value: value.name, label: value.name }))]} onChange={(value) => { setDetailCompany(value); setDetailPage(1); }} active={detailCompany !== ALL} />
+                      <DetailHeaderFilter label="업체" value={detailCompany} options={[{ value: ALL, label: "전체 업체" }, ...detailCompanyOptions]} onChange={(value) => { setDetailCompany(value); setDetailPage(1); }} active={detailCompany !== ALL} />
                     </TableHead>
-                    <TableHead className="w-16 px-1 text-center">상태</TableHead>
+                    <TableHead className="w-20 px-1 text-center">
+                      <DetailHeaderFilter label="상태" value={detailStatus} options={[{ value: ALL, label: "전체 상태" }, ...Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label }))]} onChange={(value) => { setDetailStatus(value); setDetailPage(1); }} active={detailStatus !== ALL} />
+                    </TableHead>
                     <TableHead className="w-20 whitespace-nowrap px-2 text-center">투입 인원</TableHead>
-                    <TableHead className="w-28 whitespace-nowrap px-2 text-center">견적 노무비</TableHead>
                     <TableHead className="w-28 whitespace-nowrap px-2 text-center">
-                      실제 노무비
+                      <DetailHeaderFilter label="견적 노무비" value={detailSort.field === "quoted" ? detailSort.direction : ""} options={[{ value: "asc", label: "오름차순" }, { value: "desc", label: "내림차순" }]} onChange={(direction) => { setDetailSort({ field: "quoted", direction: direction as "asc" | "desc" }); setDetailPage(1); }} active={detailSort.field === "quoted"} />
                     </TableHead>
-                    <TableHead className="w-28 whitespace-nowrap px-2 text-center">차액</TableHead>
-                    <TableHead className="w-24 whitespace-nowrap px-2 text-center">노무비 집행률</TableHead>
+                    <TableHead className="w-28 whitespace-nowrap px-2 text-center">
+                      <DetailHeaderFilter label="실제 노무비" value={detailSort.field === "actual" ? detailSort.direction : ""} options={[{ value: "asc", label: "오름차순" }, { value: "desc", label: "내림차순" }]} onChange={(direction) => { setDetailSort({ field: "actual", direction: direction as "asc" | "desc" }); setDetailPage(1); }} active={detailSort.field === "actual"} />
+                    </TableHead>
+                    <TableHead className="w-28 whitespace-nowrap px-2 text-center">
+                      <DetailHeaderFilter label="차액" value={detailSort.field === "difference" ? detailSort.direction : ""} options={[{ value: "asc", label: "오름차순" }, { value: "desc", label: "내림차순" }]} onChange={(direction) => { setDetailSort({ field: "difference", direction: direction as "asc" | "desc" }); setDetailPage(1); }} active={detailSort.field === "difference"} />
+                    </TableHead>
+                    <TableHead className="w-24 whitespace-nowrap px-2 text-center">
+                      <DetailHeaderFilter label="노무비 집행률" value={detailSort.field === "rate" ? detailSort.direction : ""} options={[{ value: "asc", label: "오름차순" }, { value: "desc", label: "내림차순" }]} onChange={(direction) => { setDetailSort({ field: "rate", direction: direction as "asc" | "desc" }); setDetailPage(1); }} active={detailSort.field === "rate"} />
+                    </TableHead>
                     <TableHead className="min-w-24 text-center">관리</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -1091,8 +1123,10 @@ export function LaborDashboard({
                         <TableCell className={`whitespace-nowrap text-center font-medium ${riskGradeColor(item.riskGrade)}`}>{item.riskGrade || "일반작업"}</TableCell>
                         <TableCell className="text-center">{item.siteName || "-"}</TableCell>
                         <TableCell className="w-24 px-2 text-center">
-                          {detailScope === "company" && detailCompany !== ALL
-                            ? detailCompany
+                          {detailCompany === "공무기술팀"
+                            ? "서울영상테크"
+                            : detailScope === "company" && detailCompany !== ALL
+                              ? detailCompany
                             : item.companyName ||
                               item.entries.find(
                                 (row) => row.contractorType !== "self",
