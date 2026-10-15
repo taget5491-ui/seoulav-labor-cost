@@ -1134,8 +1134,8 @@ export function LaborDashboard({
                         ? "업체 노무비"
                         : "실제 노무비"}
                     </TableHead>
-                    <TableHead className="w-28 whitespace-nowrap px-2 text-right">차액</TableHead>
-                    <TableHead className="w-24 whitespace-nowrap px-2 text-right">노무비 집행률</TableHead>
+                    <TableHead className="w-28 whitespace-nowrap px-2 text-center">차액</TableHead>
+                    <TableHead className="w-24 whitespace-nowrap px-2 text-center">노무비 집행률</TableHead>
                     <TableHead className="min-w-24 text-center">관리</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -1194,7 +1194,7 @@ export function LaborDashboard({
                           {formatWon(shownActual)}
                         </TableCell>
                         <TableCell
-                          className={`w-28 whitespace-nowrap px-2 text-right ${profit < 0 ? "text-red-600" : "text-emerald-700"}`}
+                          className={`w-28 whitespace-nowrap px-2 text-center ${profit < 0 ? "text-red-600" : "text-emerald-700"}`}
                         >
                           {detailScope === "company" ? (
                             "-"
@@ -1202,7 +1202,7 @@ export function LaborDashboard({
                             formatWon(profit)
                           )}
                         </TableCell>
-                        <TableCell className="w-24 whitespace-nowrap px-2 text-right">
+                        <TableCell className="w-24 whitespace-nowrap px-2 text-center">
                           {detailScope === "company" ? "-" : `${executionRate.toFixed(1)}%`}
                         </TableCell>
                         <TableCell className="min-w-24 text-center">
