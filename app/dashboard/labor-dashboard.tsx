@@ -985,12 +985,12 @@ export function LaborDashboard({
                   )}
                   {detailScope === "site" && (
                     <p className="mt-1 text-sm font-medium text-cyan-700">
-                      선택 사이트: {detailSite} · 견적 노무비 총합 {formatWon(detailSummary.quoted)} · 실제 노무비 총합 {formatWon(detailSummary.actual)}
+                      선택 사이트: {detailSite} · 견적 노무비 총합 {formatWon(detailSummary.quoted)} · 실제 노무비 총합 {formatWon(detailSummary.actual)} · 이윤 <span className={detailDifference < 0 ? "text-red-600" : "text-cyan-700"}>{formatWon(detailDifference)}</span> · 노무비 집행률 {detailSummary.rate.toFixed(1)}%
                     </p>
                   )}
                   {(detailScope === "monthly" || detailScope === "overall") && (
                     <p className="mt-1 text-sm font-medium text-cyan-700">
-                      {detailScope === "monthly" ? `${selectedMonth} 월별` : "전체"} · 견적 노무비 총합 {formatWon(detailSummary.quoted)} · 실제 노무비 총합 {formatWon(detailSummary.actual)} · 차액 <span className={detailDifference < 0 ? "text-red-600" : "text-cyan-700"}>{detailDifference > 0 ? "+" : ""}{formatWon(detailDifference)}</span> · 집행률 {detailSummary.rate.toFixed(1)}%
+                      {detailScope === "monthly" ? `${selectedMonth} 월별` : "전체"} · 견적 노무비 총합 {formatWon(detailSummary.quoted)} · 실제 노무비 총합 {formatWon(detailSummary.actual)} · 이윤 <span className={detailDifference < 0 ? "text-red-600" : "text-cyan-700"}>{formatWon(detailDifference)}</span> · 노무비 집행률 {detailSummary.rate.toFixed(1)}%
                     </p>
                   )}
                 </div>
@@ -1105,7 +1105,8 @@ export function LaborDashboard({
                         ? "업체 노무비"
                         : "실제 노무비"}
                     </TableHead>
-                    <TableHead className="text-right">차이</TableHead>
+                    <TableHead className="text-right">이윤</TableHead>
+                    <TableHead className="text-right">노무비 집행률</TableHead>
                     <TableHead className="text-center">관리</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -1119,10 +1120,13 @@ export function LaborDashboard({
                       detailScope === "company" && detailCompany !== ALL
                         ? companyLaborForEstimate(item, detailCompany)
                         : Number(item.totalAmount || 0);
-                    const difference =
+                    const profit =
                       detailScope === "company"
                         ? 0
-                        : shownActual - Number(item.quotedLaborAmount || 0);
+                        : Number(item.quotedLaborAmount || 0) - shownActual;
+                    const executionRate = Number(item.quotedLaborAmount || 0) > 0
+                      ? shownActual / Number(item.quotedLaborAmount || 0) * 100
+                      : 0;
                     return (
                       <TableRow key={item.id}>
                         <TableCell className="whitespace-nowrap">
@@ -1159,16 +1163,16 @@ export function LaborDashboard({
                           {formatWon(shownActual)}
                         </TableCell>
                         <TableCell
-                          className={`text-right ${difference > 0 ? "text-red-600" : "text-emerald-700"}`}
+                          className={`text-right ${profit < 0 ? "text-red-600" : "text-emerald-700"}`}
                         >
                           {detailScope === "company" ? (
                             "-"
                           ) : (
-                            <>
-                              {difference > 0 ? "+" : ""}
-                              {formatWon(difference)}
-                            </>
+                            formatWon(profit)
                           )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {detailScope === "company" ? "-" : `${executionRate.toFixed(1)}%`}
                         </TableCell>
                         <TableCell className="text-center">
                           {item.status === "closed" && canEdit ? (
@@ -1189,7 +1193,7 @@ export function LaborDashboard({
                   {!detailItems.length && (
                     <TableRow>
                       <TableCell
-                        colSpan={10}
+                        colSpan={12}
                         className="h-32 text-center text-slate-500"
                       >
                         선택 조건에 해당하는 프로젝트가 없습니다.
